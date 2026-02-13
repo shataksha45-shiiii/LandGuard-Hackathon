@@ -145,42 +145,236 @@ def check_encroachment(geometry):
 # --- THE HAMMER: PDF GENERATOR ---
 class PDF(FPDF):
     def header(self):
-        self.set_font('Arial', 'B', 15)
-        self.cell(0, 10, 'GOVERNMENT OF CHHATTISGARH', 0, 1, 'C')
-        self.set_font('Arial', '', 12)
-        self.cell(0, 10, 'Naya Raipur Development Authority', 0, 1, 'C')
-        self.ln(10)
+        # Top border line
+        self.set_draw_color(0, 100, 0)
+        self.set_line_width(1.2)
+        self.line(10, 8, 200, 8)
+        
+        # Ashoka Emblem placeholder
+        self.set_font('Times', 'B', 22)
+        self.set_text_color(0, 80, 0)
+        self.set_y(12)
+        self.cell(0, 8, '* * *', 0, 1, 'C')
+        
+        # Government Name (Hindi transliteration)
+        self.set_font('Times', 'B', 14)
+        self.set_text_color(0, 0, 0)
+        self.cell(0, 7, 'CHHATTISGARH SHASAN', 0, 1, 'C')
+        
+        # Government Name (English)
+        self.set_font('Times', 'B', 16)
+        self.set_text_color(0, 60, 0)
+        self.cell(0, 8, 'GOVERNMENT OF CHHATTISGARH', 0, 1, 'C')
+        
+        # Department
+        self.set_font('Times', '', 11)
+        self.set_text_color(30, 30, 30)
+        self.cell(0, 6, 'Department of Town & Country Planning', 0, 1, 'C')
+        
+        # Sub-department
+        self.set_font('Times', '', 10)
+        self.set_text_color(80, 80, 80)
+        self.cell(0, 5, 'Chhattisgarh State Industrial Development Corporation (CSIDC)', 0, 1, 'C')
+        self.cell(0, 5, 'Naya Raipur Development Authority (NRDA)', 0, 1, 'C')
+        
+        # Decorative line
+        self.set_draw_color(0, 100, 0)
+        self.set_line_width(0.8)
+        self.line(10, self.get_y() + 3, 200, self.get_y() + 3)
+        self.set_line_width(0.3)
+        self.line(10, self.get_y() + 5, 200, self.get_y() + 5)
+        self.ln(8)
+    
+    def footer(self):
+        self.set_y(-30)
+        self.set_draw_color(0, 100, 0)
+        self.set_line_width(0.3)
+        self.line(10, self.get_y(), 200, self.get_y())
+        self.ln(3)
+        self.set_font('Times', 'I', 8)
+        self.set_text_color(100, 100, 100)
+        self.cell(0, 4, 'This is a computer-generated notice issued under the authority of the', 0, 1, 'C')
+        self.cell(0, 4, 'Chhattisgarh Land Revenue Code and Town & Country Planning Act.', 0, 1, 'C')
+        self.cell(0, 4, 'Powered by LandGuard AI Satellite Surveillance System | Copernicus Sentinel Data', 0, 1, 'C')
+        self.set_font('Times', '', 8)
+        self.cell(0, 5, f'Page {self.page_no()}/{{nb}}', 0, 0, 'C')
 
 def create_notice(plot_id, violation_type):
-    pdf = PDF()
-    pdf.add_page()
-    pdf.set_font("Arial", size=12)
-    date_str = datetime.datetime.now().strftime("%Y-%m-%d")
+    # Sanitize text for FPDF's latin-1 encoding 
+    def safe(text):
+        if not text:
+            return ''
+        return text.encode('latin-1', errors='replace').decode('latin-1')
     
-    content = [
-        f"NOTICE NO: LG-{plot_id}-{date_str}",
-        f"DATE: {date_str}",
-        f"TO: REGISTERED OWNER OF {plot_id}",
-        "",
-        "SUBJECT: NOTICE OF UNAUTHORIZED LAND USE / ENCROACHMENT",
-        "",
-        "Our Satellite Surveillance System (LandGuard AI) has detected significant",
-        f"anomalies on the property designated as: {plot_id}.",
-        "",
-        f"NATURE OF VIOLATION: {violation_type}",
-        "",
-        "Technical analysis indicates unauthorized construction or clearance",
-        "of protected land. You are required to halt all activities immediately.",
-        "",
-        "Please report to the Town & Country Planning Department within 7 days.",
-        "",
-        "Sincerely, LandGuard Monitoring System"
+    # Sanitize inputs
+    violation_type = safe(str(violation_type))
+    plot_id = safe(str(plot_id))
+    
+    pdf = PDF()
+    pdf.alias_nb_pages()
+    pdf.add_page()
+    
+    date_str = datetime.datetime.now().strftime("%d %B %Y")
+    date_short = datetime.datetime.now().strftime("%Y%m%d")
+    ref_no = f"CSIDC/TCP/LG-{date_short}/{plot_id}"
+    
+    # ─── Reference and Date Block ───
+    pdf.set_font("Times", "B", 10)
+    pdf.set_text_color(0, 0, 0)
+    pdf.cell(95, 6, f"Ref. No.: {ref_no}", 0, 0, 'L')
+    pdf.cell(95, 6, f"Date: {date_str}", 0, 1, 'R')
+    pdf.ln(3)
+    
+    # ─── NOTICE Title ───
+    pdf.set_fill_color(0, 80, 0)
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Times", "B", 14)
+    pdf.cell(0, 10, "SHOW CAUSE NOTICE", 0, 1, 'C', fill=True)
+    pdf.ln(2)
+    
+    # ─── Subject ───
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Times", "B", 10)
+    pdf.cell(20, 6, "Subject:", 0, 0, 'L')
+    pdf.set_font("Times", "BU", 10)
+    pdf.cell(0, 6, "Notice of Unauthorized Land Use / Encroachment - Siyarpali Industrial Area", 0, 1, 'L')
+    pdf.ln(1)
+    
+    # ─── Legal Reference ───
+    pdf.set_font("Times", "I", 9)
+    pdf.set_text_color(80, 80, 80)
+    pdf.multi_cell(0, 5,
+        "Issued under Section 27 of the Chhattisgarh Nagar Tatha Gram Nivesh Adhiniyam, 1973 "
+        "read with Rule 15 of the CG Land Revenue Code, 1959 and Section 248 of the "
+        "CG Municipal Corporation Act, 1956."
+    )
+    pdf.ln(3)
+    
+    # ─── TO / Recipient ───
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Times", "B", 10)
+    pdf.cell(0, 6, "TO:", 0, 1, 'L')
+    pdf.set_font("Times", "", 10)
+    pdf.cell(0, 5, f"   The Registered Owner / Occupant of Plot: {plot_id}", 0, 1, 'L')
+    pdf.cell(0, 5, "   Siyarpali Industrial Area, District Raigarh, Chhattisgarh - 496001", 0, 1, 'L')
+    pdf.ln(4)
+    
+    # ─── Body Paragraph 1 ───
+    pdf.set_font("Times", "", 10)
+    pdf.multi_cell(0, 5,
+        f"WHEREAS, the LandGuard AI Satellite Surveillance System, operating under the "
+        f"directive of the Chhattisgarh State Industrial Development Corporation (CSIDC), "
+        f"has conducted a remote sensing analysis of the above-mentioned plot ({plot_id}) "
+        f"using Copernicus Sentinel-1 SAR (Synthetic Aperture Radar) and Sentinel-2 MSI "
+        f"(Multi-Spectral Instrument) satellite imagery, and;"
+    )
+    pdf.ln(2)
+    
+    # ─── Body Paragraph 2 ───
+    pdf.multi_cell(0, 5,
+        f"WHEREAS, the said analysis has revealed the following unauthorized activity:"
+    )
+    pdf.ln(2)
+    
+    # ─── Violation Details Box ───
+    pdf.set_draw_color(180, 0, 0)
+    pdf.set_line_width(0.6)
+    y_before = pdf.get_y()
+    pdf.set_fill_color(255, 240, 240)
+    pdf.rect(12, y_before, 186, 22, 'DF')
+    pdf.set_xy(15, y_before + 3)
+    pdf.set_font("Times", "B", 10)
+    pdf.set_text_color(150, 0, 0)
+    pdf.cell(0, 5, "NATURE OF VIOLATION:", 0, 1, 'L')
+    pdf.set_x(15)
+    pdf.set_font("Times", "", 10)
+    pdf.set_text_color(0, 0, 0)
+    pdf.multi_cell(180, 5, violation_type)
+    pdf.set_y(y_before + 25)
+    
+    # ─── Satellite Evidence Table ───
+    pdf.set_font("Times", "B", 10)
+    pdf.set_text_color(0, 60, 0)
+    pdf.cell(0, 7, "SATELLITE EVIDENCE SUMMARY:", 0, 1, 'L')
+    
+    pdf.set_font("Times", "B", 9)
+    pdf.set_fill_color(0, 80, 0)
+    pdf.set_text_color(255, 255, 255)
+    pdf.cell(63, 7, "Parameter", 1, 0, 'C', fill=True)
+    pdf.cell(63, 7, "Technology", 1, 0, 'C', fill=True)
+    pdf.cell(64, 7, "Finding", 1, 1, 'C', fill=True)
+    
+    pdf.set_font("Times", "", 9)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_fill_color(245, 245, 245)
+
+    table_data = [
+        ("Vegetation Index (NDVI)", "Sentinel-2 Optical", "Anomalous - Low / Cleared"),
+        ("Radar Backscatter (VV)", "Sentinel-1 C-Band SAR", "Exceeded -11.0 dB Threshold"),
+        ("Structural Detection", "Multi-Sensor Fusion", "Unauthorized Construction"),
+        ("Temporal Change", "12-Month Time Series", "Progressive Encroachment"),
     ]
     
-    for line in content:
-        pdf.cell(0, 8, line, 0, 1)
-        
-    filename = f"NOTICE_{plot_id}.pdf"
+    for i, (param, tech, finding) in enumerate(table_data):
+        fill = i % 2 == 0
+        pdf.cell(63, 6, f"  {param}", 1, 0, 'L', fill=fill)
+        pdf.cell(63, 6, f"  {tech}", 1, 0, 'L', fill=fill)
+        pdf.cell(64, 6, f"  {finding}", 1, 1, 'L', fill=fill)
+    
+    pdf.ln(4)
+    
+    # ─── Directive ───
+    pdf.set_font("Times", "B", 10)
+    pdf.set_text_color(0, 0, 0)
+    pdf.cell(0, 6, "DIRECTIVE:", 0, 1, 'L')
+    pdf.set_font("Times", "", 10)
+    pdf.multi_cell(0, 5,
+        "You are hereby directed to:\n"
+        "   1. Immediately cease all unauthorized construction and land-use activities.\n"
+        "   2. Appear before the undersigned authority within SEVEN (7) working days\n"
+        "      from the date of receipt of this notice, along with all relevant land\n"
+        "      ownership documents, sanctioned building plans, and NOC certificates.\n"
+        "   3. Show cause as to why the unauthorized structure/encroachment should not\n"
+        "      be demolished/removed at your own cost under Section 27 of the CG Nagar\n"
+        "      Tatha Gram Nivesh Adhiniyam, 1973.\n"
+    )
+    pdf.ln(2)
+    
+    # ─── Warning ───
+    pdf.set_font("Times", "B", 9)
+    pdf.set_text_color(150, 0, 0)
+    pdf.multi_cell(0, 5,
+        "WARNING: Failure to comply within the stipulated time will result in action "
+        "including but not limited to: demolition of unauthorized structures, recovery of "
+        "damages, and prosecution under applicable laws of the State of Chhattisgarh."
+    )
+    pdf.ln(6)
+    
+    # ─── Signature Block ───
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Times", "", 10)
+    pdf.cell(95, 5, "", 0, 0)
+    pdf.cell(95, 5, "By Order,", 0, 1, 'L')
+    pdf.ln(8)
+    
+    pdf.cell(95, 5, "", 0, 0)
+    pdf.set_font("Times", "B", 10)
+    pdf.cell(95, 5, "Authorized Signatory", 0, 1, 'L')
+    
+    pdf.cell(95, 5, "", 0, 0)
+    pdf.set_font("Times", "", 9)
+    pdf.cell(95, 5, "Town & Country Planning Department", 0, 1, 'L')
+    
+    pdf.cell(95, 5, "", 0, 0)
+    pdf.cell(95, 5, "CSIDC, Naya Raipur, Chhattisgarh", 0, 1, 'L')
+    
+    # ─── CC Block ───
+    pdf.ln(5)
+    pdf.set_font("Times", "I", 8)
+    pdf.set_text_color(100, 100, 100)
+    pdf.cell(0, 4, "CC: District Collector (Raigarh), Sub-Divisional Officer (Dharamjaigarh), CSIDC Managing Director", 0, 1, 'L')
+    
+    filename = f"NOTICE_{plot_id}_{date_short}.pdf"
     filepath = os.path.join(PDF_DIR, filename)
     pdf.output(filepath)
     return filename
@@ -249,6 +443,207 @@ def analyze_plot():
     except Exception as e:
         print(f"❌ Analysis Error: {str(e)}")
         return jsonify({"error": str(e)}), 500
+
+@app.route('/analyze_timeline', methods=['POST'])
+def analyze_timeline():
+    try:
+        data = request.json
+        plot_id = data.get('plot_id', 'Unknown')
+        coords = data.get('coordinates')
+        
+        # 1. Coordinate Cleaning (same as analyze_plot)
+        def clean_coords(c_list):
+            if isinstance(c_list[0], list):
+                return [clean_coords(sub) for sub in c_list]
+            return [c_list[0], c_list[1]]
+
+        temp_coords = coords
+        while isinstance(temp_coords, list) and len(temp_coords) == 1 and isinstance(temp_coords[0][0], list):
+            temp_coords = temp_coords[0]
+            
+        final_coords = clean_coords(temp_coords)
+        roi = ee.Geometry.Polygon(final_coords)
+        
+        # 2. Get Sentinel-1 data for last 12 months
+        end_date = datetime.datetime.now()
+        start_date = end_date - datetime.timedelta(days=365)
+        
+        s1_collection = ee.ImageCollection('COPERNICUS/S1_GRD') \
+            .filterBounds(roi) \
+            .filterDate(start_date, end_date) \
+            .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV')) \
+            .filter(ee.Filter.eq('instrumentMode', 'IW'))
+        
+        # 3. Calculate encroached area for each image
+        def calculate_encroachment_area(image):
+            # Threshold: VV > -11.0 indicates encroachment
+            encroached = image.select('VV').gt(-11.0)
+            # Multiply by pixel area to get area in square meters
+            area_image = encroached.multiply(ee.Image.pixelArea())
+            # Sum up the total encroached area
+            area_stats = area_image.reduceRegion(
+                reducer=ee.Reducer.sum(),
+                geometry=roi,
+                scale=10,
+                maxPixels=1e9
+            )
+            
+            # Get the date of the image
+            date = ee.Date(image.get('system:time_start')).format('YYYY-MM-dd')
+            
+            return ee.Feature(None, {
+                'date': date,
+                'encroached_area': area_stats.get('VV')
+            })
+        
+        # Map over collection and extract timeline data
+        timeline_features = s1_collection.map(calculate_encroachment_area)
+        timeline_list = timeline_features.reduceColumns(
+            ee.Reducer.toList(2), 
+            ['date', 'encroached_area']
+        ).get('list').getInfo()
+        
+        # 4. Format and sort the results
+        timeline_data = []
+        for item in timeline_list:
+            if item[1] is not None:  # Skip if area calculation failed
+                timeline_data.append({
+                    'date': item[0],
+                    'encroached_area': round(float(item[1]), 2)
+                })
+        
+        # Sort by date
+        timeline_data.sort(key=lambda x: x['date'])
+        
+        return jsonify({
+            'plot_id': plot_id,
+            'timeline': timeline_data,
+            'data_points': len(timeline_data)
+        })
+        
+    except Exception as e:
+        print(f"❌ Timeline Analysis Error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/get_overlay_tiles', methods=['POST'])
+def get_overlay_tiles():
+    """Generate GEE tile URLs for satellite overlay comparison."""
+    try:
+        data = request.json
+        plot_id = data.get('plot_id', 'Unknown')
+        coords = data.get('coordinates')
+        
+        # 1. Coordinate Cleaning
+        def clean_coords(c_list):
+            if isinstance(c_list[0], list):
+                return [clean_coords(sub) for sub in c_list]
+            return [c_list[0], c_list[1]]
+
+        temp_coords = coords
+        while isinstance(temp_coords, list) and len(temp_coords) == 1 and isinstance(temp_coords[0][0], list):
+            temp_coords = temp_coords[0]
+            
+        final_coords = clean_coords(temp_coords)
+        roi = ee.Geometry.Polygon(final_coords)
+        
+        end_date = datetime.datetime.now()
+        start_date = end_date - datetime.timedelta(days=30)
+        
+        # 2. Sentinel-1 Radar — Encroachment mask
+        s1 = ee.ImageCollection('COPERNICUS/S1_GRD') \
+            .filterBounds(roi) \
+            .filterDate(start_date, end_date) \
+            .filter(ee.Filter.listContains('transmitterReceiverPolarisation', 'VV')) \
+            .filter(ee.Filter.eq('instrumentMode', 'IW')) \
+            .mean().clip(roi)
+        
+        # Create encroachment mask: VV > -11.0 means structure detected
+        encroachment_mask = s1.select('VV').gt(-11.0)
+        
+        # Calculate encroached area in sq meters
+        encroached_area_img = encroachment_mask.multiply(ee.Image.pixelArea())
+        encroached_stats = encroached_area_img.reduceRegion(
+            reducer=ee.Reducer.sum(),
+            geometry=roi,
+            scale=10,
+            maxPixels=1e9
+        )
+        encroached_area_sqm = encroached_stats.get('VV').getInfo() or 0
+        
+        # Total plot area
+        total_area_sqm = roi.area(1).getInfo()  # 1m precision
+        clean_area_sqm = max(total_area_sqm - encroached_area_sqm, 0)
+        
+        # Style the encroachment mask for visualization
+        encroachment_vis = encroachment_mask.selfMask().visualize(**{
+            'palette': ['#ff0000'],
+            'min': 0,
+            'max': 1,
+            'opacity': 0.65
+        })
+        
+        # Get tile URL for encroachment overlay
+        encroachment_map = encroachment_vis.getMapId()
+        encroachment_tile_url = encroachment_map['tile_fetcher'].url_format
+        
+        # 3. Sentinel-2 True Color — Natural satellite view
+        s2 = ee.ImageCollection('COPERNICUS/S2_SR_HARMONIZED') \
+            .filterBounds(roi) \
+            .filterDate(start_date, end_date) \
+            .filter(ee.Filter.lt('CLOUDY_PIXEL_PERCENTAGE', 30)) \
+            .median().clip(roi)
+        
+        s2_vis = s2.visualize(**{
+            'bands': ['B4', 'B3', 'B2'],
+            'min': 0,
+            'max': 3000,
+            'gamma': 1.3
+        })
+        
+        s2_map = s2_vis.getMapId()
+        s2_tile_url = s2_map['tile_fetcher'].url_format
+        
+        # 4. NDVI Vegetation overlay
+        ndvi = s2.normalizedDifference(['B8', 'B4']).rename('NDVI').clip(roi)
+        ndvi_vis = ndvi.visualize(**{
+            'min': -0.1,
+            'max': 0.6,
+            'palette': ['#d73027', '#fc8d59', '#fee08b', '#d9ef8b', '#91cf60', '#1a9850']
+        })
+        
+        ndvi_map = ndvi_vis.getMapId()
+        ndvi_tile_url = ndvi_map['tile_fetcher'].url_format
+        
+        # 5. Radar backscatter visualization
+        vv_vis = s1.select('VV').visualize(**{
+            'min': -25,
+            'max': 0,
+            'palette': ['#000004', '#3b0f70', '#8c2981', '#de4968', '#fe9f6d', '#fcfdbf']
+        })
+        
+        vv_map = vv_vis.getMapId()
+        vv_tile_url = vv_map['tile_fetcher'].url_format
+        
+        print(f"✅ Overlay tiles generated for {plot_id}")
+        
+        return jsonify({
+            'plot_id': plot_id,
+            'tiles': {
+                'encroachment': encroachment_tile_url,
+                'satellite': s2_tile_url,
+                'ndvi': ndvi_tile_url,
+                'radar': vv_tile_url
+            },
+            'area_breakdown': {
+                'total_sqm': round(total_area_sqm, 2),
+                'encroached_sqm': round(encroached_area_sqm, 2),
+                'clean_sqm': round(clean_area_sqm, 2),
+                'encroachment_pct': round((encroached_area_sqm / total_area_sqm * 100) if total_area_sqm > 0 else 0, 1)
+            }
+        })
+    except Exception as e:
+        print(f"❌ Overlay Tiles Error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/generate_notice', methods=['POST'])
 def generate_notice():
