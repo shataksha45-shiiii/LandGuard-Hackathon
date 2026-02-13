@@ -1,0 +1,16 @@
+# Dependency folders (Too heavy to upload)
+node_modules/
+venv/
+__pycache__/
+.DS_Store
+
+# API Keys & Secrets (NEVER UPLOAD THESE)
+service-account.json
+.env
+.env.local
+
+# Build outputs
+dist/
+build/
+*.pyc
+
