@@ -7,7 +7,8 @@ import os
 import math
 
 # --- CONFIGURATION ---
-SERVICE_ACCOUNT_FILE = 'service-account.json'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SERVICE_ACCOUNT_FILE = os.path.join(BASE_DIR, 'service-account.json')
 SERVICE_ACCOUNT_EMAIL = 'landguard-bot@landguard-hackathon.iam.gserviceaccount.com' 
 
 # --- AUTHENTICATION ---
@@ -21,7 +22,7 @@ app = Flask(__name__)
 CORS(app)
 
 # Create pdfs directory if it doesn't exist
-PDF_DIR = 'pdfs'
+PDF_DIR = os.path.join(BASE_DIR, 'pdfs')
 if not os.path.exists(PDF_DIR):
     os.makedirs(PDF_DIR)
 
@@ -199,7 +200,7 @@ class PDF(FPDF):
         self.set_font('Times', '', 8)
         self.cell(0, 5, f'Page {self.page_no()}/{{nb}}', 0, 0, 'C')
 
-def create_notice(plot_id, violation_type):
+def create_notice(plot_id, violation_type, excess_area_sqm=0):
     # Sanitize text for FPDF's latin-1 encoding 
     def safe(text):
         if not text:
@@ -209,6 +210,19 @@ def create_notice(plot_id, violation_type):
     # Sanitize inputs
     violation_type = safe(str(violation_type))
     plot_id = safe(str(plot_id))
+    
+    # Financial Calculation (CG Land Revenue Code, 1959)
+    try:
+        area_sqm = float(excess_area_sqm)
+    except:
+        area_sqm = 0.0
+        
+    area_sqft = area_sqm * 10.764
+    LAND_RATE_PER_SQFT = 600  # Estimated Industrial Rate for Khapri/Siyarpali
+    
+    fine_statutory = 25000  # Max fine under Section 248
+    civil_liability = round(area_sqft * LAND_RATE_PER_SQFT)
+    total_liability = fine_statutory + civil_liability
     
     pdf = PDF()
     pdf.alias_nb_pages()
@@ -237,7 +251,7 @@ def create_notice(plot_id, violation_type):
     pdf.set_font("Times", "B", 10)
     pdf.cell(20, 6, "Subject:", 0, 0, 'L')
     pdf.set_font("Times", "BU", 10)
-    pdf.cell(0, 6, "Notice of Unauthorized Land Use / Encroachment - Siyarpali Industrial Area", 0, 1, 'L')
+    pdf.cell(0, 6, "Notice of Unauthorized Land Use / Encroachment - Khapri Khurd Industrial Area", 0, 1, 'L')
     pdf.ln(1)
     
     # ─── Legal Reference ───
@@ -256,7 +270,7 @@ def create_notice(plot_id, violation_type):
     pdf.cell(0, 6, "TO:", 0, 1, 'L')
     pdf.set_font("Times", "", 10)
     pdf.cell(0, 5, f"   The Registered Owner / Occupant of Plot: {plot_id}", 0, 1, 'L')
-    pdf.cell(0, 5, "   Siyarpali Industrial Area, District Raigarh, Chhattisgarh - 496001", 0, 1, 'L')
+    pdf.cell(0, 5, "   Khapri Khurd Industrial Area, District Durg, Chhattisgarh", 0, 1, 'L')
     pdf.ln(4)
     
     # ─── Body Paragraph 1 ───
@@ -321,6 +335,37 @@ def create_notice(plot_id, violation_type):
         pdf.cell(63, 6, f"  {tech}", 1, 0, 'L', fill=fill)
         pdf.cell(64, 6, f"  {finding}", 1, 1, 'L', fill=fill)
     
+    pdf.ln(5)
+
+    # ─── Financial Liability Assessment ───
+    pdf.set_font("Times", "B", 10)
+    pdf.set_text_color(150, 0, 0)
+    pdf.cell(0, 6, "FINANCIAL LIABILITY ASSESSMENT:", 0, 1, 'L')
+    
+    pdf.set_font("Times", "B", 9)
+    pdf.set_fill_color(240, 240, 240)
+    pdf.set_text_color(0, 0, 0)
+    pdf.cell(100, 6, "Description of Liability", 1, 0, 'L', fill=True)
+    pdf.cell(50, 6, "Reference", 1, 0, 'L', fill=True)
+    pdf.cell(40, 6, "Amount (INR)", 1, 1, 'R', fill=True)
+    
+    pdf.set_font("Times", "", 9)
+    
+    # Row 1: Statutory Fine
+    pdf.cell(100, 6, "  Statutory Penalty (Max)", 1, 0, 'L')
+    pdf.cell(50, 6, "  Sec 248, CGLRC 1959", 1, 0, 'L')
+    pdf.cell(40, 6, f"  Rs. {fine_statutory:,}", 1, 1, 'R')
+    
+    # Row 2: Civil Liability
+    pdf.cell(100, 6, f"  Est. Market Value of Encroached Land ({area_sqm:.1f} m2)", 1, 0, 'L')
+    pdf.cell(50, 6, "  Civil Recovery / Damages", 1, 0, 'L')
+    pdf.cell(40, 6, f"  Rs. {civil_liability:,}", 1, 1, 'R')
+    
+    # Row 3: Total
+    pdf.set_font("Times", "B", 9)
+    pdf.cell(150, 6, "  TOTAL RECOVERABLE AMOUNT", 1, 0, 'R', fill=True)
+    pdf.cell(40, 6, f"  Rs. {total_liability:,}", 1, 1, 'R', fill=True)
+    
     pdf.ln(4)
     
     # ─── Directive ───
@@ -331,12 +376,9 @@ def create_notice(plot_id, violation_type):
     pdf.multi_cell(0, 5,
         "You are hereby directed to:\n"
         "   1. Immediately cease all unauthorized construction and land-use activities.\n"
-        "   2. Appear before the undersigned authority within SEVEN (7) working days\n"
-        "      from the date of receipt of this notice, along with all relevant land\n"
-        "      ownership documents, sanctioned building plans, and NOC certificates.\n"
-        "   3. Show cause as to why the unauthorized structure/encroachment should not\n"
-        "      be demolished/removed at your own cost under Section 27 of the CG Nagar\n"
-        "      Tatha Gram Nivesh Adhiniyam, 1973.\n"
+        f"   2. Deposit the assessed penalty of Rs. {fine_statutory:,} and liability within 15 days.\n"
+        "   3. Restore the land to its original state or face summary eviction.\n"
+        "   4. Appear before the Revenue Court/Tahsildar on the scheduled hearing date."
     )
     pdf.ln(2)
     
@@ -651,7 +693,8 @@ def generate_notice():
         data = request.json
         plot_id = data.get('plot_id')
         violation = data.get('violation')
-        filename = create_notice(plot_id, violation)
+        excess_area_sqm = data.get('excess_area_sqm', 0)
+        filename = create_notice(plot_id, violation, excess_area_sqm)
         filepath = os.path.join(PDF_DIR, filename)
         return jsonify({
             "message": "Legal Notice Generated Successfully",
@@ -677,4 +720,4 @@ def download_file(filename):
     return send_file(filepath, as_attachment=True)
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5001)

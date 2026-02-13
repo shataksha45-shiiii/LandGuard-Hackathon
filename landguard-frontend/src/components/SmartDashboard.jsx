@@ -5,7 +5,8 @@ import ComparisonView from './ComparisonView';
 import {
   Menu, Satellite, AlertTriangle, Activity, Search, ArrowLeft,
   AlertCircle, Send, LayoutDashboard, MapPin, TrendingUp,
-  Info, Shield, Eye, Zap, ChevronRight, ExternalLink, Layers
+  Info, Shield, Eye, Zap, ChevronRight, ExternalLink, Layers, Building2,
+  DollarSign, FileWarning, Download
 } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -38,6 +39,30 @@ const calculatePolygonArea = (coordinates) => {
   area = Math.abs((area * R * R) / 2.0);
   return area; // Returns in square km
 };
+
+// ─────────────────────── ZONE CONFIG ───────────────────────
+const ZONES = [
+  {
+    id: 'khapri',
+    name: 'Khapri Khurd',
+    file: '/plots.geojson',
+    center: [21.572, 81.846],
+    location: 'Khapri Khurd Industrial Area',
+    district: 'District Durg',
+    color: 'emerald',
+    plotCount: 0
+  },
+  {
+    id: 'siyarpali',
+    name: 'Siyarpali',
+    file: '/map.geojson',
+    center: [21.871, 83.493],
+    location: 'Siyarpali Industrial Zone',
+    district: 'District Raigarh',
+    color: 'sky',
+    plotCount: 0
+  }
+];
 
 // ─────────────────────── ABOUT SECTION ───────────────────────
 const AboutSection = () => {
@@ -118,7 +143,7 @@ const AboutSection = () => {
             <AlertTriangle size={16} /> The Problem
           </h3>
           <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-            Industrial plots allotted by CSIDC in the Siyarpali Industrial Area are being <strong>illegally encroached upon</strong> — unauthorized constructions extend beyond sanctioned boundaries. Traditional manual surveys are <strong>slow, expensive, and prone to human error</strong>. Government officials often discover violations months or years after they occur, making enforcement difficult and costly.
+            Industrial plots allotted by CSIDC in the Khapri Khurd Industrial Area are being <strong>illegally encroached upon</strong> — unauthorized constructions extend beyond sanctioned boundaries. Traditional manual surveys are <strong>slow, expensive, and prone to human error</strong>. Government officials often discover violations months or years after they occur, making enforcement difficult and costly.
           </p>
         </div>
 
@@ -208,7 +233,7 @@ const ExecutiveSummary = ({ plots }) => {
             <LayoutDashboard size={20} />
           </div>
           <div>
-            <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100">Siyarpali Overview</h2>
+            <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100">{activeZone?.name || 'Zone'} Overview</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">Real-time industrial zone monitoring</p>
           </div>
         </div>
@@ -255,43 +280,89 @@ export default function SmartDashboard() {
 
   // --- REAL DATA STATE ---
   const [plots, setPlots] = useState([]);
-  const [mapCenter, setMapCenter] = useState([21.871, 83.493]); // Siyarpali Coordinates
+  const [mapCenter, setMapCenter] = useState(ZONES[0].center);
   const [selectedPlot, setSelectedPlot] = useState(null);
   const [_generatedReports, setGeneratedReports] = useState([]);
   const [timelineData, setTimelineData] = useState([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
+
+  // --- ZONE STATE ---
+  const [activeZone, setActiveZone] = useState(ZONES[0]);
+  const [allZonesData, setAllZonesData] = useState({});
+  const [zoneCounts, setZoneCounts] = useState({});
 
   const showNotification = (msg) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 4000);
   };
 
-  // 1. Load GeoJSON into the System
-  useEffect(() => {
-    fetch('/map.geojson')
-      .then(response => response.json())
-      .then(data => {
-        const realPlots = data.features
-          .filter(feature => feature.geometry.type === "Polygon")
-          .map((feature, index) => {
-            const areaKmSq = calculatePolygonArea(feature.geometry.coordinates[0]);
-            return {
-              plot_id: feature.properties.name || `PLOT-${index}`,
-              location: 'Siyarpali Industrial Zone',
-              is_violating: false,
-              coordinates: feature.geometry.coordinates,
-              description: 'Awaiting Live Satellite Scan...',
-              analysis_data: null,
-              area_sqkm: areaKmSq,
-              area_sqm: areaKmSq * 1_000_000
-            };
-          });
+  // Helper: parse GeoJSON features into plot objects
+  const parseGeoJSON = (data, zone) => {
+    return data.features
+      .filter(feature => feature.geometry.type === "Polygon")
+      .map((feature, index) => {
+        // Fix: Strip Z-axis (altitude) from coordinates to prevent GEE errors
+        const rawRing = feature.geometry.coordinates[0];
+        const cleanRing = rawRing.map(pt => pt.slice(0, 2));
+        const cleanCoords = [cleanRing];
 
-        setPlots(realPlots);
-        if (realPlots.length > 0) setSelectedPlot(realPlots[0]);
-      })
-      .catch(() => showNotification("❌ Failed to load map.geojson"));
+        const areaKmSq = calculatePolygonArea(cleanRing);
+        return {
+          plot_id: feature.properties.name || `PLOT-${index}`,
+          location: zone.location,
+          zone_id: zone.id,
+          is_violating: false,
+          coordinates: cleanCoords,
+          description: 'Awaiting Live Satellite Scan...',
+          analysis_data: null,
+          area_sqkm: areaKmSq,
+          area_sqm: areaKmSq * 1_000_000
+        };
+      });
+  };
+
+  // 1. Load ALL GeoJSON zones on mount
+  useEffect(() => {
+    Promise.all(
+      ZONES.map(zone =>
+        fetch(zone.file)
+          .then(res => res.json())
+          .then(data => ({ zone, plots: parseGeoJSON(data, zone) }))
+          .catch(() => {
+            showNotification(`❌ Failed to load ${zone.name} data`);
+            return { zone, plots: [] };
+          })
+      )
+    ).then(results => {
+      const zonesData = {};
+      const counts = {};
+      results.forEach(({ zone, plots: zonePlots }) => {
+        zonesData[zone.id] = zonePlots;
+        counts[zone.id] = zonePlots.length;
+      });
+      setAllZonesData(zonesData);
+      setZoneCounts(counts);
+
+      // Set initial zone
+      const initialPlots = zonesData[ZONES[0].id] || [];
+      setPlots(initialPlots);
+      if (initialPlots.length > 0) setSelectedPlot(initialPlots[0]);
+      showNotification(`✅ Loaded ${Object.values(counts).reduce((a, b) => a + b, 0)} plots across ${results.length} zones`);
+    });
   }, []);
+
+  // Switch active zone
+  const handleZoneSwitch = (zone) => {
+    if (zone.id === activeZone.id) return;
+    setActiveZone(zone);
+    const zonePlots = allZonesData[zone.id] || [];
+    setPlots(zonePlots);
+    setSelectedPlot(zonePlots.length > 0 ? zonePlots[0] : null);
+    setMapCenter(zone.center);
+    setTimelineData([]);
+    setSearchQuery('');
+    showNotification(`📍 Switched to ${zone.name} — ${zonePlots.length} plots`);
+  };
 
   useEffect(() => {
     setCurrentTime(new Date().toLocaleTimeString());
@@ -309,11 +380,11 @@ export default function SmartDashboard() {
     try {
       // Fetch current analysis and timeline data in parallel
       const [analysisResponse, timelineResponse] = await Promise.all([
-        axios.post('http://127.0.0.1:5000/analyze_plot', {
+        axios.post('http://127.0.0.1:5001/analyze_plot', {
           plot_id: plot.plot_id,
           coordinates: plot.coordinates[0]
         }),
-        axios.post('http://127.0.0.1:5000/analyze_timeline', {
+        axios.post('http://127.0.0.1:5001/analyze_timeline', {
           plot_id: plot.plot_id,
           coordinates: plot.coordinates[0]
         })
@@ -384,19 +455,20 @@ export default function SmartDashboard() {
 
   // 3. GENERATE LEGAL NOTICE
   const handleGenerateNotice = async () => {
-    if (!selectedPlot?.is_violating) return;
     setLoading(true);
-    showNotification("⚖️ Generating Official Notice...");
-
     try {
-      // Step 1: Generate the PDF on the backend
-      const res = await axios.post('http://127.0.0.1:5000/generate_notice', {
+      showNotification("⏳ Generating Legal Notice...");
+
+      // Step 1: Request PDF generation from backend with area data
+      const response = await axios.post('http://127.0.0.1:5001/generate_notice', {
         plot_id: selectedPlot.plot_id,
-        violation: selectedPlot.description
+        violation: selectedPlot.description,
+        excess_area_sqm: selectedPlot.analysis_data?.area?.excess_area_sqm || 0
       });
 
-      const downloadUrl = `http://127.0.0.1:5000${res.data.download_link}`;
-      const fileName = res.data.file || 'LegalNotice.pdf';
+      const { file, download_link } = response.data;
+      const downloadUrl = `http://127.0.0.1:5001${download_link}`;
+      const fileName = file || 'LegalNotice.pdf';
 
       setGeneratedReports(prev => [{
         id: selectedPlot.plot_id,
@@ -461,6 +533,61 @@ export default function SmartDashboard() {
         <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto custom-scrollbar">
           {!isSearchMode ? (
             <>
+              {/* ─── Zone Selector ─── */}
+              {sidebarOpen && (
+                <div className="mb-3 animate-fade-in">
+                  <p className="px-3 text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-[0.15em] mb-2">Industrial Zones</p>
+                  <div className="space-y-1.5 px-1">
+                    {ZONES.map(zone => (
+                      <button
+                        key={zone.id}
+                        onClick={() => handleZoneSwitch(zone)}
+                        className={`w-full text-left p-2.5 rounded-xl border transition-all duration-200 group ${activeZone.id === zone.id
+                          ? 'bg-emerald-50/80 dark:bg-emerald-900/20 border-emerald-300/70 dark:border-emerald-700/40 shadow-sm'
+                          : 'bg-white/40 dark:bg-slate-800/30 border-transparent hover:border-slate-200 dark:hover:border-slate-700/40 hover:bg-white/70 dark:hover:bg-slate-800/50'
+                          }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-200 ${activeZone.id === zone.id
+                            ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-sm'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 group-hover:bg-emerald-100 dark:group-hover:bg-emerald-900/20 group-hover:text-emerald-600 dark:group-hover:text-emerald-400'
+                            }`}>
+                            <Building2 size={14} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-xs font-bold truncate ${activeZone.id === zone.id ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-700 dark:text-slate-300'
+                              }`}>{zone.name}</p>
+                            <p className="text-[9px] text-slate-400 dark:text-slate-500 truncate">{zone.district} · {zoneCounts[zone.id] || 0} plots</p>
+                          </div>
+                          {activeZone.id === zone.id && (
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0 animate-pulse" />
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {!sidebarOpen && (
+                <div className="space-y-1 mb-2">
+                  {ZONES.map(zone => (
+                    <button
+                      key={zone.id}
+                      onClick={() => handleZoneSwitch(zone)}
+                      title={zone.name}
+                      className={`w-full flex items-center justify-center py-2.5 rounded-xl transition-all duration-200 ${activeZone.id === zone.id
+                        ? 'bg-emerald-100/70 text-emerald-700 dark:bg-emerald-900/25 dark:text-emerald-400'
+                        : 'text-slate-400 hover:bg-slate-100/50 dark:hover:bg-slate-800/30'
+                        }`}
+                    >
+                      <Building2 size={18} />
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="h-px bg-emerald-100/50 dark:bg-emerald-900/20 my-2 mx-3" />
+
               {/* Search Button */}
               <button
                 onClick={() => { setIsSearchMode(true); setSidebarOpen(true); }}
@@ -606,7 +733,7 @@ export default function SmartDashboard() {
                       <div className="p-4 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-emerald-100/50 dark:border-emerald-900/20 shadow-sm">
                         <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">TARGET IDENTIFICATION</p>
                         <p className="text-xl font-black text-gray-800 dark:text-white mt-0.5">{selectedPlot.plot_id}</p>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">Siyarpali Industrial Area, Chhattisgarh</p>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">{activeZone?.location || 'Industrial Area'}, Chhattisgarh</p>
                       </div>
 
                       {/* ──── SECTION 2: AI Verdict ──── */}
@@ -799,6 +926,45 @@ export default function SmartDashboard() {
                               <p className="text-[9px] text-slate-400 dark:text-slate-500 italic">
                                 Percentage of registered area detected as excess unauthorized construction.
                               </p>
+                            </div>
+                          )}
+
+                          {/* ──── SECTION 5: Financial Liability Assessment ──── */}
+                          {(selectedPlot.is_violating || (selectedPlot.analysis_data?.area?.excess_area_sqm > 0)) && (
+                            <div className="p-3.5 bg-red-50/80 dark:bg-red-900/10 rounded-xl border border-red-200/50 dark:border-red-800/30 space-y-3 animate-fade-in-up delay-100">
+                              <h3 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                <DollarSign size={12} className="text-red-500" />
+                                Financial Liability Assessment
+                              </h3>
+                              <div className="space-y-2">
+                                {/* Statutory Fine */}
+                                <div className="flex justify-between items-center text-xs">
+                                  <span className="text-slate-600 dark:text-slate-400">Section 248 Penalty (Max)</span>
+                                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200">₹25,000</span>
+                                </div>
+                                {/* Civil Liability */}
+                                <div className="flex justify-between items-center text-xs">
+                                  <span className="text-slate-600 dark:text-slate-400">Est. Civil Liability (Land Value)</span>
+                                  <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                                    ₹{Math.round((selectedPlot.analysis_data?.area?.excess_area_sqm || 0) * 10.764 * 600).toLocaleString()}
+                                  </span>
+                                </div>
+                                <div className="h-px bg-red-200 dark:bg-red-800/30" />
+                                {/* Total */}
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Recoverable</span>
+                                  <span className="font-black text-lg text-red-600 dark:text-red-400 font-mono">
+                                    ₹{(25000 + Math.round((selectedPlot.analysis_data?.area?.excess_area_sqm || 0) * 10.764 * 600)).toLocaleString()}
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={handleGenerateNotice}
+                                disabled={loading}
+                                className="w-full py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold shadow-md shadow-red-500/20 transition-all flex items-center justify-center gap-2"
+                              >
+                                <FileWarning size={14} /> {loading ? "PROCESSING..." : "ISSUE LEGAL NOTICE"}
+                              </button>
                             </div>
                           )}
 

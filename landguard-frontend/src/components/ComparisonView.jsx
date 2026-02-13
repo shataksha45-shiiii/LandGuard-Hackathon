@@ -91,7 +91,7 @@ export default function ComparisonView({ plots, selectedPlot, onSelectPlot }) {
 
     // Calculate center from plot coordinates
     const getPlotCenter = (plot) => {
-        if (!plot?.coordinates?.[0]) return [21.871, 83.493];
+        if (!plot?.coordinates?.[0]) return [21.572, 81.846];
         const coords = plot.coordinates[0];
         let sumLat = 0, sumLon = 0;
         coords.forEach(c => { sumLon += c[0]; sumLat += c[1]; });
@@ -106,7 +106,7 @@ export default function ComparisonView({ plots, selectedPlot, onSelectPlot }) {
         setOverlayTiles(null);
 
         try {
-            const res = await axios.post('http://127.0.0.1:5000/get_overlay_tiles', {
+            const res = await axios.post('http://127.0.0.1:5001/get_overlay_tiles', {
                 plot_id: plot.plot_id,
                 coordinates: plot.coordinates[0]
             });
