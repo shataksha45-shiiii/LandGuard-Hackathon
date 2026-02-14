@@ -13,7 +13,8 @@ SERVICE_ACCOUNT_EMAIL = 'landguard-bot@landguard-hackathon.iam.gserviceaccount.c
 
 # --- AUTHENTICATION ---
 try:
-    ee.Initialize(ee.ServiceAccountCredentials(SERVICE_ACCOUNT_EMAIL, SERVICE_ACCOUNT_FILE))
+    credentials = ee.ServiceAccountCredentials(SERVICE_ACCOUNT_EMAIL, SERVICE_ACCOUNT_FILE)
+    ee.Initialize(credentials, project='landguard-hackathon')
     print("✅ GEE Connected Successfully.")
 except Exception as e:
     print(f"❌ GEE Auth Failed: {e}")
@@ -196,7 +197,7 @@ class PDF(FPDF):
         self.set_text_color(100, 100, 100)
         self.cell(0, 4, 'This is a computer-generated notice issued under the authority of the', 0, 1, 'C')
         self.cell(0, 4, 'Chhattisgarh Land Revenue Code and Town & Country Planning Act.', 0, 1, 'C')
-        self.cell(0, 4, 'Powered by LandGuard AI Satellite Surveillance System | Copernicus Sentinel Data', 0, 1, 'C')
+        self.cell(0, 4, 'Powered by UdyogGadh AI Satellite Surveillance System | Copernicus Sentinel Data', 0, 1, 'C')
         self.set_font('Times', '', 8)
         self.cell(0, 5, f'Page {self.page_no()}/{{nb}}', 0, 0, 'C')
 
@@ -276,7 +277,7 @@ def create_notice(plot_id, violation_type, excess_area_sqm=0):
     # ─── Body Paragraph 1 ───
     pdf.set_font("Times", "", 10)
     pdf.multi_cell(0, 5,
-        f"WHEREAS, the LandGuard AI Satellite Surveillance System, operating under the "
+        f"WHEREAS, the UdyogGadh AI Satellite Surveillance System, operating under the "
         f"directive of the Chhattisgarh State Industrial Development Corporation (CSIDC), "
         f"has conducted a remote sensing analysis of the above-mentioned plot ({plot_id}) "
         f"using Copernicus Sentinel-1 SAR (Synthetic Aperture Radar) and Sentinel-2 MSI "
@@ -720,4 +721,4 @@ def download_file(filename):
     return send_file(filepath, as_attachment=True)
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+    app.run(debug=True, host='0.0.0.0', port=5001)

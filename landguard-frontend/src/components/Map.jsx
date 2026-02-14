@@ -49,8 +49,8 @@ const Map = ({ plots, onPlotClick, center }) => {
               positions={plot.coordinates[0].map(c => [c[1], c[0]])}
               pathOptions={{
                 // SYNC LOGIC: Turn Red if Satellite Analysis confirms violation
-                color: plot.is_violating ? '#ef4444' : '#10b981',
-                fillColor: plot.is_violating ? '#ef4444' : '#10b981',
+                color: plot.is_violating ? '#ef4444' : '#003366',
+                fillColor: plot.is_violating ? '#ef4444' : '#003366',
                 fillOpacity: 0.4,
                 weight: 2,
                 dashArray: plot.is_violating ? '5, 5' : null
