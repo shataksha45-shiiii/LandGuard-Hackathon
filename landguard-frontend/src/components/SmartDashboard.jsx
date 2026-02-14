@@ -174,51 +174,303 @@ const AboutSection = () => {
 };
 
 // ─────────────────────── EXECUTIVE SUMMARY ───────────────────────
-const ExecutiveSummary = ({ plots, activeZone }) => {
-  const totalAreaSqKm = plots.reduce((sum, p) => sum + (p.area_sqkm || 0), 0);
-  const excessAreaSqKm = plots.reduce((sum, p) => sum + (p.analysis_data?.area?.excess_area_sqkm || 0), 0);
+const ExecutiveSummary = ({ allZonesData, zones, generatedReports, scanProgress }) => {
+  const [selectedZoneId, setSelectedZoneId] = useState('all');
+
+  // ── Aggregate data across ALL zones ──
+  const allPlots = Object.values(allZonesData).flat();
+  const totalPlots = allPlots.length;
+  const totalViolations = allPlots.filter(p => p.is_violating).length;
+  const totalAreaSqKm = allPlots.reduce((s, p) => s + (p.area_sqkm || 0), 0);
+  const totalExcessSqM = allPlots.reduce((s, p) => s + (p.analysis_data?.area?.excess_area_sqm || 0), 0);
+  const noticeIds = new Set((generatedReports || []).map(r => r.id));
+  const totalNoticesSent = noticeIds.size;
+
+  // ── Per-zone totals for the summary cards ──
+  const zoneSummaries = zones.map(z => {
+    const zp = allZonesData[z.id] || [];
+    const violated = zp.filter(p => p.is_violating);
+    const areaSqKm = zp.reduce((s, p) => s + (p.area_sqkm || 0), 0);
+    return { ...z, plotCount: zp.length, violationCount: violated.length, areaSqKm };
+  });
+
+  // ── Plots for the selected zone (or all) ──
+  const displayPlots = selectedZoneId === 'all'
+    ? allPlots
+    : (allZonesData[selectedZoneId] || []);
+
+  const selectedZoneName = selectedZoneId === 'all'
+    ? 'All Regions'
+    : zones.find(z => z.id === selectedZoneId)?.name || 'Region';
+
+  // ── Financial calc helper ──
+  const calcPenalty = (plot) => {
+    const excessSqM = plot.analysis_data?.area?.excess_area_sqm || 0;
+    const sqft = excessSqM * 10.764;
+    return 25000 + Math.round(sqft * 600);
+  };
+
+  // ── Sort: violated first, then by excess area desc ──
+  const sortedPlots = [...displayPlots].sort((a, b) => {
+    if (a.is_violating !== b.is_violating) return b.is_violating ? 1 : -1;
+    const aEx = a.analysis_data?.area?.excess_area_sqm || 0;
+    const bEx = b.analysis_data?.area?.excess_area_sqm || 0;
+    return bEx - aEx;
+  });
 
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar">
-      <div className="p-8 space-y-6 animate-fade-in">
-        {/* Header */}
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-gradient-to-br from-[#1b3a4b] to-[#24505f] text-white shadow-md">
-            <LayoutDashboard size={20} />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold text-[#1b3a4b] dark:text-blue-400 font-heading">{activeZone?.name || 'Zone'} — Statistics Overview</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Real-time industrial zone monitoring | CSIDC</p>
+      <div className="p-6 space-y-6 animate-fade-in max-w-7xl mx-auto">
+
+        {/* ═══ Header ═══ */}
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-gradient-to-br from-[#1b3a4b] to-[#24505f] text-white shadow-md">
+              <LayoutDashboard size={20} />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-[#1b3a4b] dark:text-blue-400 font-heading">Statistics & Monitoring Overview</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Cross-region industrial zone analytics | CSIDC</p>
+            </div>
           </div>
         </div>
 
-        {/* Stat Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 stagger-children">
-          <div className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/50 p-5 rounded-2xl hover:shadow-lg transition-all duration-300">
-            <p className="text-slate-500 dark:text-slate-400 text-[11px] font-bold uppercase tracking-wider">Total Plots Mapped</p>
-            <p className="text-3xl font-black text-[#1b3a4b] dark:text-blue-400 mt-2">{plots.length}</p>
-            <div className="mt-3 h-1 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-              <div className="h-full bg-[#1b3a4b] dark:bg-blue-500 rounded-full" style={{ width: '100%' }} />
+        {/* ═══ Scan Progress Bar ═══ */}
+        {scanProgress && scanProgress.total > 0 && (
+          <div className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/50 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Satellite size={16} className={`text-[#1b3a4b] dark:text-blue-400 ${scanProgress.scanning ? 'animate-pulse' : ''}`} />
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  {scanProgress.scanning ? 'Scanning plots via GEE satellite...' : 'All plots scanned'}
+                </span>
+              </div>
+              <span className="text-xs font-mono font-bold text-[#1b3a4b] dark:text-blue-400">
+                {scanProgress.scanned} / {scanProgress.total}
+              </span>
             </div>
-          </div>
-          <div className="bg-white dark:bg-slate-800 border border-red-200 dark:border-red-900/30 p-5 rounded-lg">
-            <p className="text-slate-500 dark:text-slate-400 text-[11px] font-bold uppercase tracking-wider">Potential Violations</p>
-            <p className="text-3xl font-black text-red-600 dark:text-red-400 mt-2">{plots.filter(p => p.is_violating).length}</p>
-            <div className="mt-3 h-1 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-              <div className="h-full bg-red-500 rounded-full" style={{ width: `${(plots.filter(p => p.is_violating).length / Math.max(plots.length, 1)) * 100}%` }} />
+            <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ease-out ${
+                  scanProgress.scanning
+                    ? 'bg-gradient-to-r from-[#FF9933] via-white to-[#138808] animate-pulse'
+                    : 'bg-gradient-to-r from-[#138808] to-[#0f6b06]'
+                }`}
+                style={{ width: `${scanProgress.total > 0 ? (scanProgress.scanned / scanProgress.total) * 100 : 0}%` }}
+              />
             </div>
+            {scanProgress.scanning && (
+              <p className="text-[10px] text-slate-400 mt-1.5">Analyzing Sentinel-1 radar & Sentinel-2 optical data for each plot...</p>
+            )}
           </div>
-          <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-5 rounded-lg">
-            <p className="text-slate-500 dark:text-slate-400 text-[11px] font-bold uppercase tracking-wider">Total Area Mapped</p>
-            <p className="text-2xl font-black text-[#1b3a4b] dark:text-blue-400 mt-2">{totalAreaSqKm.toFixed(3)} km²</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{(totalAreaSqKm * 100).toFixed(0)} hectares</p>
-          </div>
-          <div className={`bg-white dark:bg-slate-800 border p-5 rounded-lg ${excessAreaSqKm > 0 ? 'border-red-200 dark:border-red-900/30' : 'border-slate-200 dark:border-slate-700'}`}>
-            <p className={`text-[11px] font-bold uppercase tracking-wider ${excessAreaSqKm > 0 ? 'text-red-700 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>Excess Area Used</p>
-            <p className={`text-2xl font-black mt-2 ${excessAreaSqKm > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-700 dark:text-green-400'}`}>{excessAreaSqKm.toFixed(4)} km²</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{(excessAreaSqKm * 1_000_000).toFixed(0)} sq.m</p>
-          </div>
+        )}
+
+        {/* ═══ Global Aggregate Cards (across ALL regions) ═══ */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {[
+            { label: 'Total Plots', value: totalPlots, color: '#1b3a4b', icon: <Layers size={16} /> },
+            { label: 'Potential Violations', value: totalViolations, color: '#dc2626', icon: <AlertTriangle size={16} /> },
+            { label: 'Area Mapped', value: `${totalAreaSqKm.toFixed(3)} km\u00b2`, color: '#138808', icon: <Globe size={16} /> },
+            { label: 'Excess Area', value: `${totalExcessSqM.toFixed(0)} m\u00b2`, color: totalExcessSqM > 0 ? '#dc2626' : '#138808', icon: <TrendingUp size={16} /> },
+            { label: 'Notices Sent', value: totalNoticesSent, color: '#FF9933', icon: <Send size={16} /> },
+          ].map((s, i) => (
+            <div key={i} className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/50 rounded-xl p-4 hover:shadow-lg transition-all duration-300 group">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-1.5 rounded-lg" style={{ backgroundColor: s.color + '15', color: s.color }}>{s.icon}</div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{s.label}</p>
+              </div>
+              <p className="text-2xl font-black" style={{ color: s.color }}>{s.value}</p>
+            </div>
+          ))}
         </div>
+
+        {/* ═══ Per-Zone Summary Row ═══ */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {zoneSummaries.map((z) => (
+            <div
+              key={z.id}
+              onClick={() => setSelectedZoneId(z.id)}
+              className={`bg-white dark:bg-slate-800 border rounded-xl p-4 cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 ${
+                selectedZoneId === z.id ? 'border-[#FF9933] ring-2 ring-[#FF9933]/20 shadow-md' : 'border-slate-200/60 dark:border-slate-700/50'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-[#1b3a4b] text-white">
+                    <Factory size={16} />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-[#1b3a4b] dark:text-blue-400">{z.name}</h4>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400">{z.district}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 text-right">
+                  <div>
+                    <p className="text-lg font-black text-[#1b3a4b] dark:text-blue-400">{z.plotCount}</p>
+                    <p className="text-[9px] text-slate-500 uppercase">Plots</p>
+                  </div>
+                  <div>
+                    <p className={`text-lg font-black ${z.violationCount > 0 ? 'text-red-600' : 'text-green-600'}`}>{z.violationCount}</p>
+                    <p className="text-[9px] text-slate-500 uppercase">Violations</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-600 dark:text-slate-300">{z.areaSqKm.toFixed(3)}</p>
+                    <p className="text-[9px] text-slate-500 uppercase">km&sup2;</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* ═══ Region Dropdown + Plot List ═══ */}
+        <div className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/50 rounded-2xl overflow-hidden shadow-sm">
+          {/* Header bar with dropdown */}
+          <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80">
+            <div className="flex items-center gap-3">
+              <FileWarning size={16} className="text-[#1b3a4b] dark:text-blue-400" />
+              <h3 className="font-bold text-sm text-[#1b3a4b] dark:text-blue-400">Plot-wise Status</h3>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold">
+                {sortedPlots.length} plots
+              </span>
+            </div>
+            <select
+              value={selectedZoneId}
+              onChange={(e) => setSelectedZoneId(e.target.value)}
+              className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-[#FF9933]/40 cursor-pointer"
+            >
+              <option value="all">All Regions</option>
+              {zones.map(z => (
+                <option key={z.id} value={z.id}>{z.name} ({(allZonesData[z.id] || []).length} plots)</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Table header */}
+          <div className="grid grid-cols-12 gap-2 px-5 py-2 bg-slate-100/80 dark:bg-slate-700/50 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+            <div className="col-span-2">Plot ID</div>
+            <div className="col-span-2">Region</div>
+            <div className="col-span-2 text-center">Status</div>
+            <div className="col-span-2 text-right">Area (m&sup2;)</div>
+            <div className="col-span-2 text-right">Penalty (INR)</div>
+            <div className="col-span-2 text-center">Legal Notice</div>
+          </div>
+
+          {/* Plot rows */}
+          <div className="max-h-[420px] overflow-y-auto custom-scrollbar divide-y divide-slate-100 dark:divide-slate-700/50">
+            {sortedPlots.length === 0 ? (
+              <div className="px-5 py-8 text-center text-sm text-slate-400">
+                No plots loaded for {selectedZoneName}
+              </div>
+            ) : (
+              sortedPlots.map((plot, idx) => {
+                const isViolating = plot.is_violating;
+                const penalty = isViolating ? calcPenalty(plot) : 0;
+                const hasNotice = noticeIds.has(plot.plot_id);
+                const excessArea = plot.analysis_data?.area?.excess_area_sqm || 0;
+                const plotZone = zones.find(z => z.id === plot.zone_id);
+
+                return (
+                  <div
+                    key={`${plot.zone_id}-${plot.plot_id}-${idx}`}
+                    className={`grid grid-cols-12 gap-2 px-5 py-3 items-center text-sm transition-colors duration-200 ${
+                      isViolating
+                        ? 'bg-red-50/50 dark:bg-red-950/10 hover:bg-red-50 dark:hover:bg-red-950/20'
+                        : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                    }`}
+                  >
+                    {/* Plot ID */}
+                    <div className="col-span-2">
+                      <span className="font-bold text-xs text-slate-800 dark:text-slate-200 font-mono">{plot.plot_id}</span>
+                    </div>
+
+                    {/* Region */}
+                    <div className="col-span-2">
+                      <span className="text-xs text-slate-500 dark:text-slate-400">{plotZone?.name || '-'}</span>
+                    </div>
+
+                    {/* Status */}
+                    <div className="col-span-2 flex justify-center">
+                      {isViolating ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 text-[10px] font-bold">
+                          <AlertTriangle size={10} /> VIOLATED
+                        </span>
+                      ) : plot.analysis_data ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-bold">
+                          <Shield size={10} /> CLEAR
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400 text-[10px] font-bold">
+                          <Activity size={10} /> UNSCANNED
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Excess Area */}
+                    <div className="col-span-2 text-right">
+                      {isViolating ? (
+                        <span className="text-xs font-bold text-red-600 dark:text-red-400">{excessArea.toFixed(1)}</span>
+                      ) : (
+                        <span className="text-xs text-slate-400">-</span>
+                      )}
+                    </div>
+
+                    {/* Penalty */}
+                    <div className="col-span-2 text-right">
+                      {isViolating ? (
+                        <span className="text-xs font-bold text-red-700 dark:text-red-400">
+                          {'\u20B9'} {penalty.toLocaleString('en-IN')}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400">-</span>
+                      )}
+                    </div>
+
+                    {/* Legal Notice Status */}
+                    <div className="col-span-2 flex justify-center">
+                      {hasNotice ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-[#FF9933] text-[10px] font-bold">
+                          <Send size={9} /> SENT
+                        </span>
+                      ) : isViolating ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400 text-[10px] font-bold">
+                          <AlertCircle size={9} /> PENDING
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400">-</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Footer summary */}
+          {sortedPlots.length > 0 && (() => {
+            const violatedInView = sortedPlots.filter(p => p.is_violating);
+            const totalPenaltyInView = violatedInView.reduce((s, p) => s + calcPenalty(p), 0);
+            const noticesSentInView = violatedInView.filter(p => noticeIds.has(p.plot_id)).length;
+            return (
+              <div className="px-5 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-4">
+                  <span className="text-slate-500 dark:text-slate-400">
+                    <span className="font-bold text-red-600 dark:text-red-400">{violatedInView.length}</span> violated of {sortedPlots.length} plots
+                  </span>
+                  <span className="text-slate-400">|</span>
+                  <span className="text-slate-500 dark:text-slate-400">
+                    Notices: <span className="font-bold text-[#FF9933]">{noticesSentInView}</span> sent,{' '}
+                    <span className="font-bold text-yellow-600">{violatedInView.length - noticesSentInView}</span> pending
+                  </span>
+                </div>
+                <div className="font-bold text-red-700 dark:text-red-400">
+                  Total Liability: {'\u20B9'} {totalPenaltyInView.toLocaleString('en-IN')}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+
       </div>
     </div>
   );
@@ -239,7 +491,7 @@ export default function SmartDashboard() {
   const [plots, setPlots] = useState([]);
   const [mapCenter, setMapCenter] = useState(ZONES[0].center);
   const [selectedPlot, setSelectedPlot] = useState(null);
-  const [_generatedReports, setGeneratedReports] = useState([]);
+  const [generatedReports, setGeneratedReports] = useState([]);
   const [timelineData, setTimelineData] = useState([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
 
@@ -247,6 +499,10 @@ export default function SmartDashboard() {
   const [activeZone, setActiveZone] = useState(ZONES[0]);
   const [allZonesData, setAllZonesData] = useState({});
   const [zoneCounts, setZoneCounts] = useState({});
+
+  // --- AUTO-SCAN STATE ---
+  const [scanProgress, setScanProgress] = useState({ scanned: 0, total: 0, scanning: false });
+  const scanningRef = React.useRef(false);
 
   const showNotification = (msg) => {
     setNotification(msg);
@@ -370,6 +626,31 @@ export default function SmartDashboard() {
       }));
       setTimelineData(formattedTimeline);
 
+      // --- Persist analysis results back into allZonesData & plots ---
+      const updatedAnalysis = {
+        is_violating: analysisResponse.data.is_violating,
+        description: analysisResponse.data.analysis_summary,
+        analysis_data: {
+          ndvi: analysisResponse.data.vacancy_analysis,
+          radar: analysisResponse.data.encroachment_analysis,
+          confidence: analysisResponse.data.confidence_score,
+          area: analysisResponse.data.area_analysis
+        }
+      };
+      setAllZonesData(prev => {
+        const updated = { ...prev };
+        const zoneId = plot.zone_id;
+        if (updated[zoneId]) {
+          updated[zoneId] = updated[zoneId].map(p =>
+            p.plot_id === plot.plot_id ? { ...p, ...updatedAnalysis } : p
+          );
+        }
+        return updated;
+      });
+      setPlots(prev => prev.map(p =>
+        p.plot_id === plot.plot_id ? { ...p, ...updatedAnalysis } : p
+      ));
+
       showNotification("✅ Satellite Data Received");
     } catch (err) {
       console.error(err);
@@ -378,6 +659,91 @@ export default function SmartDashboard() {
     setLoading(false);
     setTimelineLoading(false);
   };
+
+  // ─── Auto-scan ALL plots across ALL zones on mount ───
+  useEffect(() => {
+    const allPlots = Object.entries(allZonesData);
+    const total = Object.values(allZonesData).flat().length;
+    if (total === 0 || scanningRef.current) return;
+
+    // Only auto-scan once
+    scanningRef.current = true;
+
+    const scanAll = async () => {
+      let scanned = 0;
+      setScanProgress({ scanned: 0, total, scanning: true });
+
+      // Flatten to (zoneId, plot) pairs
+      const tasks = [];
+      for (const [zoneId, zonePlots] of allPlots) {
+        for (const plot of zonePlots) {
+          tasks.push({ zoneId, plot });
+        }
+      }
+
+      // Process in batches of 5 for concurrency
+      const BATCH = 5;
+      for (let i = 0; i < tasks.length; i += BATCH) {
+        const batch = tasks.slice(i, i + BATCH);
+        const results = await Promise.allSettled(
+          batch.map(({ zoneId, plot }) =>
+            axios.post(`${API_BASE}/analyze_plot`, {
+              plot_id: plot.plot_id,
+              coordinates: plot.coordinates[0]
+            }).then(res => ({ zoneId, plotId: plot.plot_id, data: res.data }))
+          )
+        );
+
+        // Update allZonesData with batch results
+        setAllZonesData(prev => {
+          const updated = { ...prev };
+          for (const result of results) {
+            if (result.status === 'fulfilled') {
+              const { zoneId, plotId, data } = result.value;
+              if (updated[zoneId]) {
+                updated[zoneId] = updated[zoneId].map(p =>
+                  p.plot_id === plotId ? {
+                    ...p,
+                    is_violating: data.is_violating,
+                    description: data.analysis_summary,
+                    analysis_data: {
+                      ndvi: data.vacancy_analysis,
+                      radar: data.encroachment_analysis,
+                      confidence: data.confidence_score,
+                      area: data.area_analysis
+                    }
+                  } : p
+                );
+              }
+            }
+          }
+          return updated;
+        });
+
+        scanned += batch.length;
+        setScanProgress({ scanned: Math.min(scanned, total), total, scanning: true });
+      }
+
+      setScanProgress({ scanned: total, total, scanning: false });
+    };
+
+    scanAll();
+  }, [allZonesData]); // runs once allZonesData is populated
+
+  // ─── Keep `plots` (active zone) in sync with allZonesData ───
+  useEffect(() => {
+    const zonePlots = allZonesData[activeZone.id];
+    if (zonePlots) {
+      setPlots(zonePlots);
+      // Also update selectedPlot if it exists in this zone
+      if (selectedPlot) {
+        const updated = zonePlots.find(p => p.plot_id === selectedPlot.plot_id);
+        if (updated && updated.analysis_data && !selectedPlot.analysis_data) {
+          setSelectedPlot(prev => ({ ...prev, ...updated }));
+        }
+      }
+    }
+  }, [allZonesData, activeZone.id]);
 
   // Calculate trend from timeline data
   const calculateTrend = () => {
@@ -419,11 +785,22 @@ export default function SmartDashboard() {
     try {
       showNotification("⏳ Generating Legal Notice...");
 
-      // Step 1: Request PDF generation from backend with area data
+      // Step 1: Request PDF generation from backend with full satellite evidence
+      const analysisData = selectedPlot.analysis_data;
       const response = await axios.post(`${API_BASE}/generate_notice`, {
         plot_id: selectedPlot.plot_id,
         violation: selectedPlot.description,
-        excess_area_sqm: selectedPlot.analysis_data?.area?.excess_area_sqm || 0
+        excess_area_sqm: analysisData?.area?.excess_area_sqm || 0,
+        ndvi_score: analysisData?.ndvi?.score ?? null,
+        ndvi_status: analysisData?.ndvi?.status ?? null,
+        radar_score: analysisData?.radar?.score ?? null,
+        radar_status: analysisData?.radar?.status ?? null,
+        confidence_score: analysisData?.confidence ?? null,
+        total_area_sqm: analysisData?.area?.total_area_sqm ?? null,
+        utilization_ratio: analysisData?.area?.utilization_ratio ?? null,
+        timeline_data: timelineData.length > 0
+          ? timelineData.map(t => ({ date: t.date, encroached_area: t.area }))
+          : null,
       });
 
       const { file, download_link } = response.data;
@@ -603,7 +980,7 @@ export default function SmartDashboard() {
             ) : activeView === 'about' ? (
               <AboutSection />
             ) : activeView === 'dashboard' ? (
-              <ExecutiveSummary plots={plots} activeZone={activeZone} />
+              <ExecutiveSummary allZonesData={allZonesData} zones={ZONES} generatedReports={generatedReports} scanProgress={scanProgress} />
             ) : activeView === 'comparison' ? (
               <ComparisonView
                 plots={plots}
