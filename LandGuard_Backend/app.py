@@ -144,24 +144,20 @@ def check_encroachment(geometry):
     except Exception:
         return {"status": "Analysis Error", "score": 0, "is_encroached": False}
 
-# --- THE HAMMER: CHHATTISGARH RAJPATRA (GAZETTE) FORMAT PDF GENERATOR ---
+# --- THE HAMMER: CLEAN B&W LEGAL NOTICE PDF GENERATOR ---
 
 class GazettePDF(FPDF):
     """
-    PDF generator following the Chhattisgarh Rajpatra (Government Gazette) format.
-    Produces bilingual (Hindi + English) legal notices with satellite evidence details.
+    Clean black-and-white legal notice PDF.
+    Page 1: English.  Page 2: Hindi.
+    All text/lines in black, no colour, no overlap.
     """
-    SAFFRON = (255, 153, 51)
-    WHITE_BG = (255, 255, 255)
-    INDIA_GREEN = (19, 136, 8)
-    NAVY = (0, 0, 128)
-    DARK_GREEN = (0, 80, 0)
-    MAROON = (128, 0, 0)
 
     def __init__(self):
         super().__init__()
         self._hindi = False
-        # Attempt to load Devanagari-capable font from Windows system fonts
+        self._is_hindi_page = False
+        # Load Devanagari font
         font_pairs = [
             ('C:/Windows/Fonts/Nirmala.ttf', 'C:/Windows/Fonts/NirmalaB.ttf'),
             ('C:/Windows/Fonts/Nirmala.ttc', 'C:/Windows/Fonts/Nirmala.ttc'),
@@ -174,97 +170,80 @@ class GazettePDF(FPDF):
                     bold_path = bold if os.path.exists(bold) else reg
                     self.add_font('Hindi', 'B', bold_path)
                     self._hindi = True
-                    print(f"  \u2713 Hindi font loaded: {reg}")
                     break
-                except Exception as e:
-                    print(f"  Font load warning: {e}")
-        if not self._hindi:
-            print("  \u26a0 No Devanagari font found - Hindi sections will use transliteration")
+                except Exception:
+                    pass
 
-    def _hi(self, text, style='', size=12, h=6, align='C', w=0, ln=1):
-        """Write Hindi/Devanagari text. Skips gracefully if font unavailable."""
-        if not self._hindi:
-            return
-        self.set_font('Hindi', style, size)
-        self.cell(w, h, text, 0, ln, align)
-
-    def _hi_multi(self, text, size=10, h=5, w=0):
-        """Multi-line Hindi text."""
-        if not self._hindi:
-            return
-        self.set_font('Hindi', '', size)
-        self.multi_cell(w, h, text)
-
-    def _tricolor_bar(self, y=None, stripe_h=2.5):
-        """Draw Indian tricolor horizontal bar (Saffron-White-Green)."""
+    # ── Helpers ──
+    def _thin_line(self, y=None):
         if y is None:
             y = self.get_y()
-        self.set_fill_color(*self.SAFFRON)
-        self.rect(10, y, 190, stripe_h, 'F')
-        self.set_fill_color(*self.WHITE_BG)
-        self.rect(10, y + stripe_h, 190, stripe_h, 'F')
-        self.set_fill_color(*self.INDIA_GREEN)
-        self.rect(10, y + 2 * stripe_h, 190, stripe_h, 'F')
-        self.set_y(y + 3 * stripe_h + 2)
-
-    def _double_line(self, y=None):
-        """Draw a double-line separator."""
-        if y is None:
-            y = self.get_y() + 1
-        self.set_draw_color(*self.DARK_GREEN)
-        self.set_line_width(0.8)
+        self.set_draw_color(0, 0, 0)
+        self.set_line_width(0.4)
         self.line(10, y, 200, y)
-        self.set_line_width(0.3)
-        self.line(10, y + 2, 200, y + 2)
+        self.set_y(y + 2)
+
+    def _thick_line(self, y=None):
+        if y is None:
+            y = self.get_y()
+        self.set_draw_color(0, 0, 0)
+        self.set_line_width(1.0)
+        self.line(10, y, 200, y)
+        self.set_line_width(0.4)
+        self.line(10, y + 2.5, 200, y + 2.5)
         self.set_y(y + 5)
 
-    # ── Page Header (Rajpatra Style — matches CG Gazette image) ──
+    # ── Page Header ──
     def header(self):
-        self._tricolor_bar(y=5)
-
-        # ── CG State Emblem (Ashoka Lions) ──
-        emblem_path = os.path.join(os.path.dirname(__file__), 'emblem.png')
-        if os.path.exists(emblem_path):
-            self.image(emblem_path, x=90, y=self.get_y(), w=30)
-            self.ln(22)
-        else:
-            # Textual placeholder if image not present
-            self.set_font('Times', 'B', 20)
-            self.set_text_color(*self.NAVY)
-            self.cell(0, 8, '\u2660', 0, 1, 'C')   # dignified placeholder
-
-        # Title: छत्तीसगढ़ राजपत्र (large bold Devanagari)
         self.set_text_color(0, 0, 0)
-        self._hi('\u091b\u0924\u094d\u0924\u0940\u0938\u0917\u0922\u093c \u0930\u093e\u091c\u092a\u0924\u094d\u0930', 'B', 20, 9)
+        self.set_draw_color(0, 0, 0)
 
-        # (असाधारण) in maroon
-        self.set_text_color(*self.MAROON)
-        self._hi('(\u0905\u0938\u093e\u0927\u093e\u0930\u0923)', 'B', 13, 6)
+        start_y = 10
+        self.set_y(start_y)
 
-        # प्राधिकार से प्रकाशित
-        self.set_text_color(80, 80, 80)
-        self._hi('\u092a\u094d\u0930\u093e\u0927\u093f\u0915\u093e\u0930 \u0938\u0947 \u092a\u094d\u0930\u0915\u093e\u0936\u093f\u0924', '', 10, 5)
+        # Emblem (centred, small)
+        emblem_path = os.path.join(os.path.dirname(__file__), 'emblem.png')
+        emblem_w = 18
+        if os.path.exists(emblem_path):
+            self.image(emblem_path, x=(210 - emblem_w) / 2, y=start_y, w=emblem_w)
+            self.set_y(start_y + emblem_w + 2)
+        else:
+            self.set_y(start_y)
 
-        self._double_line()
+        if self._is_hindi_page and self._hindi:
+            self.set_font('Hindi', 'B', 14)
+            self.cell(0, 7, '\u091b\u0924\u094d\u0924\u0940\u0938\u0917\u0922\u093c \u0930\u093e\u091c\u092a\u0924\u094d\u0930', 0, 1, 'C')
+            self.set_font('Hindi', '', 9)
+            self.cell(0, 5, '(\u0905\u0938\u093e\u0927\u093e\u0930\u0923) - \u092a\u094d\u0930\u093e\u0927\u093f\u0915\u093e\u0930 \u0938\u0947 \u092a\u094d\u0930\u0915\u093e\u0936\u093f\u0924', 0, 1, 'C')
+            self.set_font('Hindi', 'B', 11)
+            self.cell(0, 6, '\u0930\u093e\u091c\u0938\u094d\u0935 \u090f\u0935\u0902 \u092d\u0942-\u0938\u0902\u092a\u0926\u093e \u092a\u094d\u0930\u092c\u0902\u0927\u0928 \u0935\u093f\u092d\u093e\u0917', 0, 1, 'C')
+            self.set_font('Hindi', '', 9)
+            self.cell(0, 5, '\u091b\u0924\u094d\u0924\u0940\u0938\u0917\u0922\u093c \u0930\u093e\u091c\u094d\u092f \u0914\u0926\u094d\u092f\u094b\u0917\u093f\u0915 \u0935\u093f\u0915\u093e\u0938 \u0928\u093f\u0917\u092e (CSIDC)', 0, 1, 'C')
+        else:
+            self.set_font('Times', 'B', 14)
+            self.cell(0, 7, 'CHHATTISGARH RAJPATRA', 0, 1, 'C')
+            self.set_font('Times', '', 9)
+            self.cell(0, 5, '(Extraordinary) - Published by Authority', 0, 1, 'C')
+            self.set_font('Times', 'B', 11)
+            self.cell(0, 6, 'Revenue & Land Estate Management Department', 0, 1, 'C')
+            self.set_font('Times', '', 9)
+            self.cell(0, 5, 'Chhattisgarh State Industrial Development Corporation (CSIDC)', 0, 1, 'C')
+
+        self.ln(1)
+        self._thick_line()
+        self.ln(1)
 
     # ── Page Footer ──
     def footer(self):
-        self.set_y(-25)
-        self._tricolor_bar(stripe_h=1)
-        self.ln(1)
-        if self._hindi:
-            self.set_font('Hindi', '', 7)
-            self.set_text_color(100, 100, 100)
-            self.cell(0, 3,
-                '\u092f\u0939 \u0915\u092e\u094d\u092a\u094d\u092f\u0942\u091f\u0930 \u091c\u0928\u093f\u0924 \u0926\u0938\u094d\u0924\u093e\u0935\u0947\u091c\u093c \u0939\u0948\u0964 '
-                '\u091b.\u0917. \u092d\u0942-\u0930\u093e\u091c\u0938\u094d\u0935 \u0938\u0902\u0939\u093f\u0924\u093e \u090f\u0935\u0902 \u0928\u0917\u0930 \u0924\u0925\u093e \u0917\u094d\u0930\u093e\u092e \u0928\u093f\u0935\u0947\u0936 \u0905\u0927\u093f\u0928\u093f\u092f\u092e \u0915\u0947 \u0905\u0927\u0940\u0928 \u091c\u093e\u0930\u0940\u0964',
-                0, 1, 'C')
+        self.set_y(-18)
+        self._thin_line()
         self.set_font('Times', 'I', 7)
-        self.set_text_color(100, 100, 100)
-        self.cell(0, 3, 'Computer-generated document. Issued under CG Land Revenue Code & Town and Country Planning Act.', 0, 1, 'C')
-        self.cell(0, 3, 'Powered by UdyogGadh AI Satellite Surveillance | Copernicus Sentinel-1 / Sentinel-2 Data', 0, 1, 'C')
+        self.set_text_color(80, 80, 80)
+        self.cell(0, 3, 'Computer-generated document | CG Land Revenue Code & Town and Country Planning Act', 0, 1, 'C')
+        self.cell(0, 3, 'UdyogGadh AI Satellite Surveillance | Copernicus Sentinel-1 / Sentinel-2', 0, 1, 'C')
         self.set_font('Times', '', 7)
         self.cell(0, 3, f'Page {self.page_no()}/{{nb}}', 0, 0, 'C')
+        self.set_text_color(0, 0, 0)
 
 
 def create_notice(plot_id, violation_type, excess_area_sqm=0,
@@ -274,17 +253,12 @@ def create_notice(plot_id, violation_type, excess_area_sqm=0,
                   total_area_sqm=None, utilization_ratio=None,
                   timeline_data=None):
     """
-    Generate a Chhattisgarh Rajpatra (Government Gazette) format legal notice PDF.
-    Structured into clear sections:
-      1. WHY the notice is being sent
-      2. HOW MUCH the recipient must pay
-      3. HOW LONG the violation has persisted (from timeline)
-      4. WHAT was the technical basis (NDVI / VV Radar)
+    Generate a clean B&W legal notice.  Page 1 = English.  Page 2 = Hindi.
+    4 sections: WHY | DURATION | TECHNICAL BASIS | AMOUNT PAYABLE
     """
     import re as _re
 
     def safe(text):
-        """Sanitize text for the Times (latin-1) font: strip emoji & non-latin chars."""
         if not text:
             return ''
         text = str(text)
@@ -304,7 +278,7 @@ def create_notice(plot_id, violation_type, excess_area_sqm=0,
     violation_type = safe(violation_type)
     plot_id = safe(plot_id)
 
-    # ── Numerical Values ──
+    # ── Numerical values ──
     try:
         area_excess_sqm = float(excess_area_sqm)
     except Exception:
@@ -329,54 +303,59 @@ def create_notice(plot_id, violation_type, excess_area_sqm=0,
     conf_display = f'{conf_pct}%' if conf_pct is not None else 'N/A'
     util_display = f'{util_val}%' if util_val is not None else 'N/A'
 
-    # ── Determine which sensor is the PRIMARY basis ──
     ndvi_violating = ndvi_val is not None and ndvi_val < 0.2
     radar_violating = radar_val is not None and radar_val > -11.0
-    if ndvi_violating and radar_violating:
-        primary_basis = 'Both NDVI (vegetation loss) and VV Radar (structural encroachment)'
-        primary_basis_hi = 'NDVI (वनस्पति हानि) एवं VV रडार (संरचनात्मक अतिक्रमण) दोनों'
-    elif ndvi_violating:
-        primary_basis = 'NDVI vegetation analysis (Sentinel-2 optical satellite)'
-        primary_basis_hi = 'NDVI वनस्पति विश्लेषण (सेंटिनेल-2 ऑप्टिकल उपग्रह)'
-    elif radar_violating:
-        primary_basis = 'VV-polarization Radar analysis (Sentinel-1 SAR satellite)'
-        primary_basis_hi = 'VV-ध्रुवीकरण रडार विश्लेषण (सेंटिनेल-1 SAR उपग्रह)'
-    else:
-        primary_basis = 'Multi-sensor satellite analysis'
-        primary_basis_hi = 'बहु-सेंसर उपग्रह विश्लेषण'
 
-    # ── Timeline / Duration of Violation ──
-    violation_duration_str = 'Data unavailable'
-    violation_duration_hi = 'डेटा अनुपलब्ध'
+    if ndvi_violating and radar_violating:
+        primary_en = 'Both NDVI (vegetation loss) and VV Radar (structural encroachment)'
+        primary_hi = 'NDVI (\u0935\u0928\u0938\u094d\u092a\u0924\u093f \u0939\u093e\u0928\u093f) \u090f\u0935\u0902 VV \u0930\u0921\u093e\u0930 (\u0938\u0902\u0930\u091a\u0928\u093e\u0924\u094d\u092e\u0915 \u0905\u0924\u093f\u0915\u094d\u0930\u092e\u0923) \u0926\u094b\u0928\u094b\u0902'
+    elif ndvi_violating:
+        primary_en = 'NDVI vegetation analysis (Sentinel-2 optical satellite)'
+        primary_hi = 'NDVI \u0935\u0928\u0938\u094d\u092a\u0924\u093f \u0935\u093f\u0936\u094d\u0932\u0947\u0937\u0923 (\u0938\u0947\u0902\u091f\u093f\u0928\u0947\u0932-2 \u0911\u092a\u094d\u091f\u093f\u0915\u0932 \u0909\u092a\u0917\u094d\u0930\u0939)'
+    elif radar_violating:
+        primary_en = 'VV-polarization Radar analysis (Sentinel-1 SAR satellite)'
+        primary_hi = 'VV-\u0927\u094d\u0930\u0941\u0935\u0940\u0915\u0930\u0923 \u0930\u0921\u093e\u0930 \u0935\u093f\u0936\u094d\u0932\u0947\u0937\u0923 (\u0938\u0947\u0902\u091f\u093f\u0928\u0947\u0932-1 SAR \u0909\u092a\u0917\u094d\u0930\u0939)'
+    else:
+        primary_en = 'Multi-sensor satellite analysis'
+        primary_hi = '\u092c\u0939\u0941-\u0938\u0947\u0902\u0938\u0930 \u0909\u092a\u0917\u094d\u0930\u0939 \u0935\u093f\u0936\u094d\u0932\u0947\u0937\u0923'
+
+    # ── Timeline / Duration ──
     first_detected_date = None
+    last_date_str = None
     months_violating = 0
+    duration_en = 'Data unavailable - to be determined through field inspection.'
+    duration_hi = '\u0921\u0947\u091f\u093e \u0905\u0928\u0941\u092a\u0932\u092c\u094d\u0927 - \u0915\u094d\u0937\u0947\u0924\u094d\u0930 \u0928\u093f\u0930\u0940\u0915\u094d\u0937\u0923 \u0926\u094d\u0935\u093e\u0930\u093e \u0928\u093f\u0930\u094d\u0927\u093e\u0930\u093f\u0924 \u0915\u093f\u092f\u093e \u091c\u093e\u090f\u0917\u093e\u0964'
+    min_area = 0
+    max_area = 0
     if timeline_data and len(timeline_data) > 0:
-        # timeline_data = [{ date: 'YYYY-MM-DD', encroached_area: float }, ...]
         violating_dates = [t for t in timeline_data if t.get('encroached_area', 0) > 0]
         if violating_dates:
             violating_dates.sort(key=lambda x: x['date'])
             first_detected_date = violating_dates[0]['date']
-            last_date = violating_dates[-1]['date']
+            last_date_str = violating_dates[-1]['date']
+            min_area = min(t['encroached_area'] for t in violating_dates)
+            max_area = max(t['encroached_area'] for t in violating_dates)
             try:
                 d1 = datetime.datetime.strptime(first_detected_date, '%Y-%m-%d')
-                d2 = datetime.datetime.strptime(last_date, '%Y-%m-%d')
+                d2 = datetime.datetime.strptime(last_date_str, '%Y-%m-%d')
                 months_violating = max(1, round((d2 - d1).days / 30))
-                violation_duration_str = (
-                    f'Approximately {months_violating} month(s) '
-                    f'(first detected: {d1.strftime("%d %b %Y")}, last observed: {d2.strftime("%d %b %Y")})'
+                duration_en = (
+                    f'Approximately {months_violating} month(s). '
+                    f'First detected: {d1.strftime("%d %b %Y")}. '
+                    f'Last observed: {d2.strftime("%d %b %Y")}.'
                 )
-                violation_duration_hi = (
-                    f'लगभग {months_violating} माह '
-                    f'(प्रथम पहचान: {d1.strftime("%d %b %Y")}, अंतिम अवलोकन: {d2.strftime("%d %b %Y")})'
+                duration_hi = (
+                    f'\u0932\u0917\u092d\u0917 {months_violating} \u092e\u093e\u0939\u0964 '
+                    f'\u092a\u094d\u0930\u0925\u092e \u092a\u0939\u091a\u093e\u0928: {d1.strftime("%d %b %Y")}\u0964 '
+                    f'\u0905\u0902\u0924\u093f\u092e \u0905\u0935\u0932\u094b\u0915\u0928: {d2.strftime("%d %b %Y")}\u0964'
                 )
             except Exception:
                 pass
 
-    # ── Financial Calculations (CG Land Revenue Code, 1959) ──
+    # ── Financial calculations ──
     LAND_RATE_PER_SQFT = 600
     fine_statutory = 25000
     civil_liability = round(area_excess_sqft * LAND_RATE_PER_SQFT)
-    # Add per-month penalty if duration known
     monthly_penalty_rate = 5000
     duration_penalty = months_violating * monthly_penalty_rate if months_violating > 0 else 0
     total_liability = fine_statutory + civil_liability + duration_penalty
@@ -384,407 +363,374 @@ def create_notice(plot_id, violation_type, excess_area_sqm=0,
     # ── Create PDF ──
     pdf = GazettePDF()
     pdf.alias_nb_pages()
-    pdf.set_auto_page_break(auto=True, margin=28)
-    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=22)
 
     date_str = datetime.datetime.now().strftime("%d %B %Y")
     date_short = datetime.datetime.now().strftime("%Y%m%d")
     ref_no = f"CSIDC/TCP/LG-{date_short}/{plot_id}"
+    notice_number = f'{abs(hash(plot_id)) % 9000 + 1000}'
 
-    # ═══════════════════════════════════════════════════════
-    # GAZETTE SUB-HEADER (matches CG Rajpatra image format)
-    # ═══════════════════════════════════════════════════════
+    # ══════════════════════════════════════════════════════════════
+    #  PAGE 1 — ENGLISH
+    # ══════════════════════════════════════════════════════════════
+    pdf._is_hindi_page = False
+    pdf.add_page()
+
+    # Ref & date
+    pdf.set_font('Times', 'B', 9)
     pdf.set_text_color(0, 0, 0)
-    # Serial number / date line (like the image: क्रमांक 371 | नवा रायपुर …)
-    if pdf._hindi:
-        pdf.set_font('Hindi', '', 9)
-        notice_number = f'{abs(hash(plot_id)) % 9000 + 1000}'
-        pdf.cell(0, 5,
-            f'क्रमांक {notice_number}  |  नवा रायपुर, दिनांक {date_str}',
-            0, 1, 'C')
-        pdf.ln(1)
-
-    # Department name (bilingual)
-    pdf._hi('राजस्व एवं भू-संपदा प्रबंधन विभाग', 'B', 12, 6)
-    pdf._hi('छत्तीसगढ़ राज्य औद्योगिक विकास निगम (CSIDC)', '', 10, 5)
-    pdf.set_font('Times', 'B', 11)
-    pdf.cell(0, 6, 'Revenue & Land Estate Management Department', 0, 1, 'C')
-    pdf.set_font('Times', '', 10)
-    pdf.set_text_color(60, 60, 60)
-    pdf.cell(0, 5, 'Chhattisgarh State Industrial Development Corp. (CSIDC), Naya Raipur', 0, 1, 'C')
-    pdf.ln(1)
-
-    # Location line
-    if pdf._hindi:
-        pdf.set_font('Hindi', '', 8)
-        pdf.set_text_color(100, 100, 100)
-        pdf.cell(0, 4, 'मंत्रालय, महानदी भवन, नवा रायपुर अटल नगर', 0, 1, 'C')
-        pdf.ln(1)
-
-    # ── Reference & Date ──
-    pdf.set_font('Times', 'B', 10)
-    pdf.set_text_color(0, 0, 0)
-    pdf.cell(95, 6, f'Ref: {ref_no}', 0, 0, 'L')
-    pdf.cell(95, 6, f'Date: {date_str}', 0, 1, 'R')
+    pdf.cell(95, 5, f'Ref: {ref_no}', 0, 0, 'L')
+    pdf.cell(95, 5, f'Date: {date_str}', 0, 1, 'R')
+    pdf.cell(95, 5, f'Notice No. {notice_number}', 0, 0, 'L')
+    pdf.cell(95, 5, 'Naya Raipur, Chhattisgarh', 0, 1, 'R')
     pdf.ln(2)
 
-    # ═══════════════════════════════════════════════════════
-    #  अधिसूचना / NOTIFICATION  — Title Banner
-    # ═══════════════════════════════════════════════════════
-    pdf.set_fill_color(*pdf.DARK_GREEN)
+    # Title bar
+    pdf.set_fill_color(0, 0, 0)
     pdf.set_text_color(255, 255, 255)
-    if pdf._hindi:
-        pdf.set_font('Hindi', 'B', 14)
-        pdf.cell(0, 10, 'अधिसूचना  -  SHOW CAUSE NOTICE', 0, 1, 'C', fill=True)
-    else:
-        pdf.set_font('Times', 'B', 14)
-        pdf.cell(0, 10, 'SHOW CAUSE NOTICE', 0, 1, 'C', fill=True)
-    pdf.ln(3)
-
-    # ── TO / Recipient ──
+    pdf.set_font('Times', 'B', 12)
+    pdf.cell(0, 8, '  SHOW CAUSE NOTICE', 0, 1, 'C', fill=True)
     pdf.set_text_color(0, 0, 0)
+    pdf.ln(2)
+
+    # Recipient
+    pdf.set_font('Times', 'B', 9)
+    pdf.cell(0, 5, 'TO:', 0, 1, 'L')
+    pdf.set_font('Times', '', 9)
+    pdf.cell(0, 4.5, f'   The Registered Owner / Occupant of Plot: {plot_id}', 0, 1, 'L')
+    pdf.cell(0, 4.5, '   CSIDC Industrial Area, Chhattisgarh', 0, 1, 'L')
+    pdf.ln(2)
+
+    # ── SECTION 1: WHY ──
     pdf.set_font('Times', 'B', 10)
-    pdf.cell(0, 6, 'TO:', 0, 1, 'L')
-    pdf.set_font('Times', '', 10)
-    pdf.cell(0, 5, f'   The Registered Owner / Occupant of Plot: {plot_id}', 0, 1, 'L')
-    pdf.cell(0, 5, '   Khapri Khurd Industrial Area, District Durg, Chhattisgarh', 0, 1, 'L')
-    pdf.ln(3)
-
-    # ═══════════════════════════════════════════════════════
-    # SECTION 1:  WHY THIS NOTICE HAS BEEN ISSUED
-    # ═══════════════════════════════════════════════════════
-    pdf.set_font('Times', 'B', 11)
-    pdf.set_text_color(*pdf.DARK_GREEN)
-    pdf.cell(0, 7, 'SECTION 1: REASON FOR THIS NOTICE', 0, 1, 'L')
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font('Times', '', 10)
-    pdf.multi_cell(0, 5,
-        f'This Show Cause Notice is being issued to you because the UdyogGadh AI Satellite '
-        f'Surveillance System has detected unauthorized activity on your allotted industrial '
-        f'plot ({plot_id}) in the Khapri Khurd Industrial Area, under the jurisdiction of CSIDC.\n\n'
-        f'Satellite imagery analysis has revealed that your land is being used in a manner '
-        f'that violates the terms of your industrial plot allotment. Specifically, the system '
-        f'has found evidence of unauthorized construction, encroachment beyond sanctioned '
-        f'boundaries, or non-industrial use of industrial land.'
+    pdf.cell(0, 6, 'SECTION 1: REASON FOR THIS NOTICE', 0, 1, 'L')
+    pdf._thin_line()
+    pdf.set_font('Times', '', 9)
+    pdf.multi_cell(0, 4.5,
+        f'The UdyogGadh AI Satellite Surveillance System has detected unauthorized activity '
+        f'on plot {plot_id}. Satellite imagery confirms the land is being used in violation of '
+        f'allotment terms - specifically, unauthorized construction, encroachment beyond '
+        f'sanctioned boundaries, or non-industrial land use.'
     )
     pdf.ln(1)
 
-    # Violation summary box (red accent bar)
-    y_start = pdf.get_y()
-    pdf.set_font('Times', 'B', 10)
-    pdf.set_text_color(150, 0, 0)
-    pdf.cell(0, 5, 'Violation Detected:', 0, 1, 'L')
-    pdf.set_font('Times', '', 10)
-    pdf.set_text_color(0, 0, 0)
-    pdf.multi_cell(0, 5, violation_type)
-    y_end = pdf.get_y()
-    pdf.set_fill_color(180, 0, 0)
-    pdf.rect(10, y_start - 1, 2, y_end - y_start + 2, 'F')
-    pdf.ln(2)
+    # Violation box with left bar
+    vy = pdf.get_y()
+    pdf.set_font('Times', 'B', 9)
+    pdf.cell(0, 4.5, '  Violation Detected:', 0, 1, 'L')
+    pdf.set_font('Times', '', 9)
+    pdf.multi_cell(0, 4.5, f'  {violation_type}')
+    vy_end = pdf.get_y()
+    pdf.set_fill_color(0, 0, 0)
+    pdf.rect(10, vy - 0.5, 1.5, vy_end - vy + 1, 'F')
+    pdf.ln(1)
 
-    # Legal authority
-    pdf.set_font('Times', 'I', 9)
+    pdf.set_font('Times', 'I', 7.5)
     pdf.set_text_color(80, 80, 80)
-    pdf.multi_cell(0, 4,
-        'Legal Basis: Section 27, CG Nagar Tatha Gram Nivesh Adhiniyam, 1973; '
-        'Rule 15, CG Land Revenue Code, 1959; Section 248, CG Municipal Corporation Act, 1956.'
+    pdf.multi_cell(0, 3.5,
+        'Legal Basis: Sec 27, CG Nagar Tatha Gram Nivesh Adhiniyam, 1973; '
+        'Rule 15, CG Land Revenue Code, 1959; Sec 248, CG Municipal Corp. Act, 1956.'
     )
-    pdf.ln(3)
-
-    # ═══════════════════════════════════════════════════════
-    # SECTION 2:  HOW LONG THE VIOLATION HAS BEEN ONGOING
-    # ═══════════════════════════════════════════════════════
-    if pdf.get_y() > 220:
-        pdf.add_page()
-
-    pdf.set_font('Times', 'B', 11)
-    pdf.set_text_color(*pdf.DARK_GREEN)
-    pdf.cell(0, 7, 'SECTION 2: DURATION OF VIOLATION', 0, 1, 'L')
     pdf.set_text_color(0, 0, 0)
-    pdf.set_font('Times', '', 10)
+    pdf.ln(2)
 
+    # ── SECTION 2: DURATION ──
+    pdf.set_font('Times', 'B', 10)
+    pdf.cell(0, 6, 'SECTION 2: DURATION OF VIOLATION', 0, 1, 'L')
+    pdf._thin_line()
+    pdf.set_font('Times', '', 9)
     if timeline_data and months_violating > 0:
-        pdf.multi_cell(0, 5,
-            f'Based on a 12-month temporal analysis of Sentinel-1 SAR satellite data, '
-            f'the encroachment / unauthorized activity on Plot {plot_id} has been '
-            f'continuously detected for approximately {months_violating} month(s).\n\n'
-            f'First Detection:  {first_detected_date}\n'
-            f'Most Recent Observation:  {violating_dates[-1]["date"]}\n\n'
-            f'Throughout this period, the satellite consistently detected encroached area '
-            f'ranging from {min(t["encroached_area"] for t in violating_dates):.1f} m\u00b2 '
-            f'to {max(t["encroached_area"] for t in violating_dates):.1f} m\u00b2, '
-            f'confirming a sustained and ongoing violation rather than a one-time anomaly.'
+        pdf.multi_cell(0, 4.5,
+            f'Based on 12-month Sentinel-1 SAR temporal analysis, the encroachment on '
+            f'plot {plot_id} has been continuously detected for approximately '
+            f'{months_violating} month(s).\n'
+            f'First Detection: {first_detected_date}    |    Last Observed: {last_date_str}\n'
+            f'Encroached area ranged from {min_area:.1f} sq.m to {max_area:.1f} sq.m throughout '
+            f'the period, confirming a sustained violation.'
         )
     else:
-        pdf.multi_cell(0, 5,
-            f'The violation on Plot {plot_id} has been identified through the latest satellite '
-            f'pass. Historical timeline data indicates ongoing unauthorized activity. The exact '
-            f'commencement date shall be determined through field inspection and revenue records.'
+        pdf.multi_cell(0, 4.5,
+            f'The violation on plot {plot_id} was identified through the latest satellite pass. '
+            f'Exact commencement date to be determined through field inspection.'
         )
-    pdf.ln(3)
+    pdf.ln(2)
 
-    # ═══════════════════════════════════════════════════════
-    # SECTION 3:  TECHNICAL BASIS — HOW VIOLATION WAS DETECTED
-    # ═══════════════════════════════════════════════════════
-    if pdf.get_y() > 220:
-        pdf.add_page()
-
-    pdf.set_font('Times', 'B', 11)
-    pdf.set_text_color(*pdf.DARK_GREEN)
-    pdf.cell(0, 7, 'SECTION 3: TECHNICAL BASIS OF DETECTION', 0, 1, 'L')
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font('Times', '', 10)
-    pdf.multi_cell(0, 5,
-        f'The primary basis for this notice is: {primary_basis}.\n\n'
-        f'Two independent satellite sensors were used to verify the violation:'
+    # ── SECTION 3: TECHNICAL BASIS ──
+    pdf.set_font('Times', 'B', 10)
+    pdf.cell(0, 6, 'SECTION 3: TECHNICAL BASIS OF DETECTION', 0, 1, 'L')
+    pdf._thin_line()
+    pdf.set_font('Times', '', 9)
+    pdf.multi_cell(0, 4.5,
+        f'Primary detection basis: {primary_en}.'
     )
     pdf.ln(1)
 
-    # 3a. NDVI
-    pdf.set_font('Times', 'B', 10)
-    pdf.cell(0, 6, '(a) Vegetation Index - NDVI (Sentinel-2 Optical Satellite)', 0, 1, 'L')
-    pdf.set_font('Times', '', 9)
-    ndvi_threshold_text = 'BELOW' if ndvi_violating else 'above'
-    ndvi_meaning = ('This means the land has experienced vegetation loss or clearing - '
-                    'consistent with unauthorized construction, paving, or industrial misuse.') \
-        if ndvi_violating else 'This indicates normal vegetation cover within acceptable limits.'
-    pdf.multi_cell(0, 4.5,
-        f'     NDVI Score Recorded: {ndvi_display}   |   Violation Threshold: 0.20\n'
-        f'     Your plot\'s NDVI is {ndvi_threshold_text} the threshold.\n'
-        f'     {ndvi_meaning}\n'
-        f'     Assessment: {ndvi_str}'
+    # (a) NDVI
+    pdf.set_font('Times', 'B', 9)
+    pdf.cell(0, 5, '(a) NDVI - Vegetation Index (Sentinel-2 Optical)', 0, 1, 'L')
+    pdf.set_font('Times', '', 8.5)
+    ndvi_flag = 'BELOW' if ndvi_violating else 'above'
+    ndvi_meaning = ('Vegetation loss detected - consistent with construction/paving.' if ndvi_violating
+                    else 'Normal vegetation within acceptable limits.')
+    pdf.multi_cell(0, 4,
+        f'    Score: {ndvi_display}  |  Threshold: 0.20  |  Status: {ndvi_flag} threshold\n'
+        f'    Interpretation: {ndvi_meaning}  |  Assessment: {ndvi_str}'
     )
-    pdf.ln(2)
+    pdf.ln(1)
 
-    # 3b. Radar
-    pdf.set_font('Times', 'B', 10)
-    pdf.cell(0, 6, '(b) Radar Backscatter - VV Polarization (Sentinel-1 SAR Satellite)', 0, 1, 'L')
-    pdf.set_font('Times', '', 9)
-    radar_threshold_text = 'EXCEEDS' if radar_violating else 'is below'
-    radar_meaning = ('This confirms hard structures (concrete, metal, brick) are present '
-                     'on your plot beyond the sanctioned building area - indicating encroachment.') \
-        if radar_violating else 'This indicates no significant structural anomalies detected.'
-    pdf.multi_cell(0, 4.5,
-        f'     Radar VV Score Recorded: {radar_display}   |   Encroachment Threshold: -11.0 dB\n'
-        f'     Your plot\'s radar backscatter {radar_threshold_text} the threshold.\n'
-        f'     {radar_meaning}\n'
-        f'     Assessment: {radar_str}'
+    # (b) Radar
+    pdf.set_font('Times', 'B', 9)
+    pdf.cell(0, 5, '(b) VV Radar Backscatter (Sentinel-1 SAR)', 0, 1, 'L')
+    pdf.set_font('Times', '', 8.5)
+    radar_flag = 'EXCEEDS' if radar_violating else 'below'
+    radar_meaning = ('Hard structures (concrete/metal/brick) detected beyond sanctioned area.' if radar_violating
+                     else 'No significant structural anomalies.')
+    pdf.multi_cell(0, 4,
+        f'    Score: {radar_display}  |  Threshold: -11.0 dB  |  Status: {radar_flag} threshold\n'
+        f'    Interpretation: {radar_meaning}  |  Assessment: {radar_str}'
     )
-    pdf.ln(2)
-
-    # 3c. Confidence
-    pdf.set_font('Times', 'B', 10)
-    pdf.cell(0, 6, '(c) Overall AI Confidence Score', 0, 1, 'L')
-    pdf.set_font('Times', '', 9)
-    conf_label = 'HIGH' if (conf_pct is not None and conf_pct > 80) else 'MODERATE'
-    pdf.multi_cell(0, 4.5,
-        f'     Combined Confidence: {conf_display}  ({conf_label})\n'
-        f'     This score combines optical + radar evidence with 12-month temporal trends.'
-    )
-    pdf.ln(2)
+    pdf.ln(1)
 
     # Evidence summary table
-    pdf.set_font('Times', 'B', 9)
-    pdf.set_text_color(0, 60, 0)
-    pdf.cell(0, 6, 'Evidence Summary Table:', 0, 1, 'L')
-
-    col_w = [48, 48, 47, 47]
     pdf.set_font('Times', 'B', 8)
-    pdf.set_fill_color(0, 80, 0)
+    col_w = [47, 47, 47, 49]
+    pdf.set_fill_color(0, 0, 0)
     pdf.set_text_color(255, 255, 255)
-    pdf.cell(col_w[0], 7, ' Parameter', 1, 0, 'L', fill=True)
-    pdf.cell(col_w[1], 7, ' Satellite Source', 1, 0, 'L', fill=True)
-    pdf.cell(col_w[2], 7, ' Your Value', 1, 0, 'L', fill=True)
-    pdf.cell(col_w[3], 7, ' Finding', 1, 1, 'L', fill=True)
-
-    pdf.set_font('Times', '', 8)
+    for j, hdr in enumerate(['Parameter', 'Source', 'Value', 'Finding']):
+        pdf.cell(col_w[j], 5.5, f' {hdr}', 1, 0, 'L', fill=True)
+    pdf.ln()
     pdf.set_text_color(0, 0, 0)
-    pdf.set_fill_color(245, 245, 245)
-
-    table_data = [
+    pdf.set_font('Times', '', 8)
+    conf_label = 'HIGH' if (conf_pct and conf_pct > 80) else 'MODERATE'
+    rows = [
         ('NDVI Score', 'Sentinel-2 MSI', ndvi_display, 'VIOLATING' if ndvi_violating else 'Normal'),
         ('Radar VV (dB)', 'Sentinel-1 SAR', radar_display, 'VIOLATING' if radar_violating else 'Normal'),
-        ('AI Confidence', 'Multi-Sensor Fusion', conf_display, conf_label),
-        ('Excess Area', 'GIS Boundary Check', f'{area_excess_sqm:.1f} m2', f'{util_display} of plot'),
+        ('AI Confidence', 'Multi-Sensor', conf_display, conf_label),
+        ('Excess Area', 'GIS Boundary', f'{area_excess_sqm:.1f} m2', f'{util_display} of plot'),
     ]
-
-    for i, (param, src, val, finding) in enumerate(table_data):
+    for i, (p, s, v, f_) in enumerate(rows):
         fill = i % 2 == 0
-        pdf.cell(col_w[0], 6, f' {param}', 1, 0, 'L', fill=fill)
-        pdf.cell(col_w[1], 6, f' {src}', 1, 0, 'L', fill=fill)
-        pdf.cell(col_w[2], 6, f' {val}', 1, 0, 'L', fill=fill)
-        pdf.cell(col_w[3], 6, f' {finding}', 1, 1, 'L', fill=fill)
-    pdf.ln(4)
-
-    # ═══════════════════════════════════════════════════════
-    # SECTION 4:  AMOUNT YOU ARE REQUIRED TO PAY
-    # ═══════════════════════════════════════════════════════
-    if pdf.get_y() > 220:
-        pdf.add_page()
-
-    pdf.set_font('Times', 'B', 11)
-    pdf.set_text_color(*pdf.DARK_GREEN)
-    pdf.cell(0, 7, 'SECTION 4: FINANCIAL LIABILITY - AMOUNT PAYABLE', 0, 1, 'L')
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font('Times', '', 10)
-    pdf.multi_cell(0, 5,
-        f'Under the provisions of the CG Land Revenue Code, 1959 and the CG Municipal '
-        f'Corporation Act, 1956, the following amount is assessed against you as the '
-        f'owner/occupant of Plot {plot_id}:'
-    )
+        pdf.set_fill_color(235, 235, 235)
+        pdf.cell(col_w[0], 5, f' {p}', 1, 0, 'L', fill=fill)
+        pdf.cell(col_w[1], 5, f' {s}', 1, 0, 'L', fill=fill)
+        pdf.cell(col_w[2], 5, f' {v}', 1, 0, 'L', fill=fill)
+        pdf.cell(col_w[3], 5, f' {f_}', 1, 1, 'L', fill=fill)
     pdf.ln(2)
+
+    # ── SECTION 4: AMOUNT PAYABLE ──
+    pdf.set_font('Times', 'B', 10)
+    pdf.cell(0, 6, 'SECTION 4: FINANCIAL LIABILITY - AMOUNT PAYABLE', 0, 1, 'L')
+    pdf._thin_line()
+    pdf.set_font('Times', '', 9)
+    pdf.multi_cell(0, 4.5,
+        f'Under CG Land Revenue Code, 1959 and CG Municipal Corporation Act, 1956, '
+        f'the following is assessed against the owner/occupant of plot {plot_id}:'
+    )
+    pdf.ln(1)
 
     # Financial table
+    fin_w = [85, 45, 60]
     pdf.set_font('Times', 'B', 8)
-    pdf.set_fill_color(0, 80, 0)
+    pdf.set_fill_color(0, 0, 0)
     pdf.set_text_color(255, 255, 255)
-    pdf.cell(90, 7, ' Description', 1, 0, 'L', fill=True)
-    pdf.cell(45, 7, ' Legal Reference', 1, 0, 'L', fill=True)
-    pdf.cell(55, 7, ' Amount (INR)', 1, 1, 'R', fill=True)
-
-    pdf.set_font('Times', '', 9)
+    pdf.cell(fin_w[0], 5.5, ' Description', 1, 0, 'L', fill=True)
+    pdf.cell(fin_w[1], 5.5, ' Reference', 1, 0, 'L', fill=True)
+    pdf.cell(fin_w[2], 5.5, ' Amount (INR)', 1, 1, 'R', fill=True)
     pdf.set_text_color(0, 0, 0)
-    pdf.set_fill_color(245, 245, 245)
+    pdf.set_font('Times', '', 8.5)
 
-    pdf.cell(90, 6, '  Statutory Penalty', 1, 0, 'L')
-    pdf.cell(45, 6, '  Sec 248, CG LRC 1959', 1, 0, 'L')
-    pdf.cell(55, 6, f'  Rs. {fine_statutory:,}', 1, 1, 'R')
+    pdf.set_fill_color(235, 235, 235)
+    pdf.cell(fin_w[0], 5, ' Statutory Penalty', 1, 0, 'L')
+    pdf.cell(fin_w[1], 5, ' Sec 248, CG LRC', 1, 0, 'L')
+    pdf.cell(fin_w[2], 5, f' Rs. {fine_statutory:,}', 1, 1, 'R')
 
-    pdf.cell(90, 6, f'  Land Recovery ({area_excess_sqm:.1f} m2 @ Rs.{LAND_RATE_PER_SQFT}/sqft)', 1, 0, 'L', fill=True)
-    pdf.cell(45, 6, '  Civil Damages', 1, 0, 'L', fill=True)
-    pdf.cell(55, 6, f'  Rs. {civil_liability:,}', 1, 1, 'R', fill=True)
+    pdf.cell(fin_w[0], 5, f' Land Recovery ({area_excess_sqm:.1f} m2 @ Rs.{LAND_RATE_PER_SQFT}/sqft)', 1, 0, 'L', fill=True)
+    pdf.cell(fin_w[1], 5, ' Civil Damages', 1, 0, 'L', fill=True)
+    pdf.cell(fin_w[2], 5, f' Rs. {civil_liability:,}', 1, 1, 'R', fill=True)
 
     if duration_penalty > 0:
-        pdf.cell(90, 6, f'  Duration Penalty ({months_violating} months @ Rs.{monthly_penalty_rate:,}/mo)', 1, 0, 'L')
-        pdf.cell(45, 6, '  Ongoing violation surcharge', 1, 0, 'L')
-        pdf.cell(55, 6, f'  Rs. {duration_penalty:,}', 1, 1, 'R')
+        pdf.cell(fin_w[0], 5, f' Duration Surcharge ({months_violating} mo @ Rs.{monthly_penalty_rate:,}/mo)', 1, 0, 'L')
+        pdf.cell(fin_w[1], 5, ' Ongoing violation', 1, 0, 'L')
+        pdf.cell(fin_w[2], 5, f' Rs. {duration_penalty:,}', 1, 1, 'R')
 
     pdf.set_font('Times', 'B', 9)
-    pdf.set_fill_color(180, 0, 0)
+    pdf.set_fill_color(0, 0, 0)
     pdf.set_text_color(255, 255, 255)
-    pdf.cell(135, 7, '  TOTAL AMOUNT PAYABLE', 1, 0, 'R', fill=True)
-    pdf.cell(55, 7, f'  Rs. {total_liability:,}', 1, 1, 'R', fill=True)
+    pdf.cell(fin_w[0] + fin_w[1], 6, ' TOTAL AMOUNT PAYABLE', 1, 0, 'R', fill=True)
+    pdf.cell(fin_w[2], 6, f' Rs. {total_liability:,}', 1, 1, 'R', fill=True)
     pdf.set_text_color(0, 0, 0)
+    pdf.ln(1)
+
+    pdf.set_font('Times', 'B', 9)
+    pdf.multi_cell(0, 4.5,
+        f'Total: Rs. {total_liability:,}/- (Rupees {_number_to_words(total_liability)} Only). '
+        f'Deposit within 15 days of receipt.'
+    )
     pdf.ln(2)
 
-    pdf.set_font('Times', 'B', 10)
-    pdf.multi_cell(0, 5,
-        f'You are required to deposit the total amount of Rs. {total_liability:,}/- '
-        f'(Rupees {_number_to_words(total_liability)} Only) within 15 days of receipt of this notice.'
+    # Directives
+    pdf.set_font('Times', 'B', 9)
+    pdf.cell(0, 5, 'DIRECTIVES:', 0, 1, 'L')
+    pdf.set_font('Times', '', 8.5)
+    pdf.multi_cell(0, 4.5,
+        '1. Immediately cease all unauthorized construction and land-use activities.\n'
+        f'2. Deposit Rs. {total_liability:,}/- within 15 days.\n'
+        '3. Restore land to designated industrial use or face summary eviction.\n'
+        '4. Appear before Revenue Court / Tahsildar on the scheduled hearing date.\n'
+        '5. Produce allotment documents, building permissions, and land records.'
+    )
+    pdf.ln(1)
+
+    # Warning
+    pdf.set_font('Times', 'B', 8)
+    pdf.multi_cell(0, 4,
+        'WARNING: Non-compliance within 15 days shall result in: (a) Demolition of unauthorized '
+        'structures at your cost, (b) Recovery of dues as arrears of land revenue, '
+        '(c) Cancellation of plot allotment, (d) Criminal prosecution under applicable CG laws.'
     )
     pdf.ln(3)
 
-    # ═══════════════════════════════════════════════════════
-    # HINDI SUMMARY (bilingual compliance)
-    # ═══════════════════════════════════════════════════════
+    # Signature
+    pdf.set_font('Times', '', 9)
+    pdf.cell(100, 5, '', 0, 0)
+    pdf.cell(90, 5, 'By Order,', 0, 1, 'L')
+    pdf.ln(6)
+    pdf.cell(100, 5, '', 0, 0)
+    pdf.set_font('Times', 'B', 9)
+    pdf.cell(90, 5, 'Authorized Signatory', 0, 1, 'L')
+    pdf.cell(100, 5, '', 0, 0)
+    pdf.set_font('Times', '', 8)
+    pdf.cell(90, 4, 'Revenue & Land Estate Mgmt. Dept., CSIDC', 0, 1, 'L')
+    pdf.ln(2)
+    pdf.set_font('Times', 'I', 7)
+    pdf.set_text_color(80, 80, 80)
+    pdf.cell(0, 3.5, 'CC: District Collector, Sub-Divisional Officer, CSIDC MD, Tahsildar', 0, 1, 'L')
+    pdf.set_text_color(0, 0, 0)
+
+    # ══════════════════════════════════════════════════════════════
+    #  PAGE 2 — HINDI
+    # ══════════════════════════════════════════════════════════════
     if pdf._hindi:
-        if pdf.get_y() > 200:
-            pdf.add_page()
-
-        pdf.set_draw_color(180, 180, 180)
-        pdf.set_line_width(0.3)
-        pdf.line(30, pdf.get_y(), 180, pdf.get_y())
-        pdf.ln(3)
-
-        pdf.set_text_color(*pdf.MAROON)
-        pdf._hi('-- हिन्दी सारांश --', 'B', 11, 6)
-        pdf.ln(1)
+        pdf._is_hindi_page = True
+        pdf.add_page()
 
         pdf.set_text_color(0, 0, 0)
+        pdf.set_font('Hindi', '', 9)
+        pdf.cell(95, 5, f'\u0938\u0902\u0926\u0930\u094d\u092d: {ref_no}', 0, 0, 'L')
+        pdf.cell(95, 5, f'\u0926\u093f\u0928\u093e\u0902\u0915: {date_str}', 0, 1, 'R')
+        pdf.ln(2)
+
+        # Title bar
+        pdf.set_fill_color(0, 0, 0)
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font('Hindi', 'B', 12)
+        pdf.cell(0, 8, '  \u0905\u0927\u093f\u0938\u0942\u091a\u0928\u093e  -  \u0915\u093e\u0930\u0923 \u092c\u0924\u093e\u0913 \u0928\u094b\u091f\u093f\u0938', 0, 1, 'C', fill=True)
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(2)
+
+        # Recipient
+        pdf.set_font('Hindi', 'B', 9)
+        pdf.cell(0, 5, '\u0938\u0947\u0935\u093e \u092e\u0947\u0902:', 0, 1, 'L')
+        pdf.set_font('Hindi', '', 9)
+        pdf.cell(0, 4.5, f'   \u092a\u094d\u0932\u0949\u091f {plot_id} \u0915\u0947 \u092a\u0902\u091c\u0940\u0915\u0943\u0924 \u0938\u094d\u0935\u093e\u092e\u0940 / \u0905\u0927\u093f\u0935\u093e\u0938\u0940', 0, 1, 'L')
+        pdf.cell(0, 4.5, '   CSIDC \u0914\u0926\u094d\u092f\u094b\u0917\u093f\u0915 \u0915\u094d\u0937\u0947\u0924\u094d\u0930, \u091b\u0924\u094d\u0924\u0940\u0938\u0917\u0922\u093c', 0, 1, 'L')
+        pdf.ln(2)
+
+        # ── Section 1: WHY (Hindi) ──
         pdf.set_font('Hindi', 'B', 10)
-        pdf.cell(0, 6, f'विषय: प्लॉट {plot_id} पर अनधिकृत भूमि उपयोग / अतिक्रमण सूचना', 0, 1, 'L')
+        pdf.cell(0, 6, '\u0916\u0902\u0921 1: \u092f\u0939 \u0938\u0942\u091a\u0928\u093e \u0915\u094d\u092f\u094b\u0902 \u091c\u093e\u0930\u0940 \u0915\u0940 \u0917\u0908', 0, 1, 'L')
+        pdf._thin_line()
+        pdf.set_font('Hindi', '', 9)
+        pdf.multi_cell(0, 5,
+            f'\u0909\u0926\u094d\u092f\u094b\u0917\u0917\u0922\u093c AI \u0909\u092a\u0917\u094d\u0930\u0939 \u0928\u093f\u0917\u0930\u093e\u0928\u0940 \u092a\u094d\u0930\u0923\u093e\u0932\u0940 \u0928\u0947 \u0906\u092a\u0915\u0947 \u092a\u094d\u0932\u0949\u091f ({plot_id}) \u092a\u0930 '
+            f'\u0905\u0928\u0927\u093f\u0915\u0943\u0924 \u0917\u0924\u093f\u0935\u093f\u0927\u093f \u0915\u093e \u092a\u0924\u093e \u0932\u0917\u093e\u092f\u093e \u0939\u0948\u0964 \u0909\u092a\u0917\u094d\u0930\u0939 \u091a\u093f\u0924\u094d\u0930\u094b\u0902 \u0938\u0947 \u092a\u094d\u0930\u092e\u093e\u0923\u093f\u0924 \u0939\u094b\u0924\u093e \u0939\u0948 \u0915\u093f \u0906\u092a\u0915\u0940 \u092d\u0942\u092e\u093f '
+            f'\u092a\u0930 \u0906\u0935\u0902\u091f\u0928 \u0936\u0930\u094d\u0924\u094b\u0902 \u0915\u093e \u0909\u0932\u094d\u0932\u0902\u0918\u0928 \u0939\u094b \u0930\u0939\u093e \u0939\u0948 - \u0905\u0928\u0927\u093f\u0915\u0943\u0924 \u0928\u093f\u0930\u094d\u092e\u093e\u0923, '
+            f'\u0938\u0940\u092e\u093e \u0938\u0947 \u092a\u0930\u0947 \u0905\u0924\u093f\u0915\u094d\u0930\u092e\u0923, \u092f\u093e \u0917\u0948\u0930-\u0914\u0926\u094d\u092f\u094b\u0917\u093f\u0915 \u092d\u0942\u092e\u093f \u0909\u092a\u092f\u094b\u0917\u0964'
+        )
+        pdf.ln(2)
+
+        # ── Section 2: DURATION (Hindi) ──
+        pdf.set_font('Hindi', 'B', 10)
+        pdf.cell(0, 6, '\u0916\u0902\u0921 2: \u0909\u0932\u094d\u0932\u0902\u0918\u0928 \u0915\u0940 \u0905\u0935\u0927\u093f', 0, 1, 'L')
+        pdf._thin_line()
+        pdf.set_font('Hindi', '', 9)
+        if timeline_data and months_violating > 0:
+            pdf.multi_cell(0, 5,
+                f'12 \u092e\u093e\u0939 \u0915\u0947 \u0938\u0947\u0902\u091f\u093f\u0928\u0947\u0932-1 SAR \u0909\u092a\u0917\u094d\u0930\u0939 \u0935\u093f\u0936\u094d\u0932\u0947\u0937\u0923 \u0915\u0947 \u0906\u0927\u093e\u0930 \u092a\u0930, \u092a\u094d\u0932\u0949\u091f {plot_id} \u092a\u0930 '
+                f'\u0905\u0924\u093f\u0915\u094d\u0930\u092e\u0923 {duration_hi}\n'
+                f'\u0905\u0924\u093f\u0915\u094d\u0930\u092e\u093f\u0924 \u0915\u094d\u0937\u0947\u0924\u094d\u0930\u092b\u0932 {min_area:.1f} \u0935\u0930\u094d\u0917 \u092e\u0940\u091f\u0930 \u0938\u0947 {max_area:.1f} \u0935\u0930\u094d\u0917 \u092e\u0940\u091f\u0930 \u0924\u0915 \u0925\u093e, '
+                f'\u091c\u094b \u0928\u093f\u0930\u0902\u0924\u0930 \u0909\u0932\u094d\u0932\u0902\u0918\u0928 \u0915\u0940 \u092a\u0941\u0937\u094d\u091f\u093f \u0915\u0930\u0924\u093e \u0939\u0948\u0964'
+            )
+        else:
+            pdf.multi_cell(0, 5,
+                f'\u092a\u094d\u0932\u0949\u091f {plot_id} \u092a\u0930 \u0909\u0932\u094d\u0932\u0902\u0918\u0928 \u0928\u0935\u0940\u0928\u0924\u092e \u0909\u092a\u0917\u094d\u0930\u0939 \u092a\u093e\u0938 \u092e\u0947\u0902 \u092a\u0939\u091a\u093e\u0928\u093e \u0917\u092f\u093e\u0964 '
+                f'\u0938\u0939\u0940 \u0906\u0930\u0902\u092d \u0924\u093f\u0925\u093f \u0915\u094d\u0937\u0947\u0924\u094d\u0930 \u0928\u093f\u0930\u0940\u0915\u094d\u0937\u0923 \u0926\u094d\u0935\u093e\u0930\u093e \u0928\u093f\u0930\u094d\u0927\u093e\u0930\u093f\u0924 \u0915\u0940 \u091c\u093e\u090f\u0917\u0940\u0964'
+            )
+        pdf.ln(2)
+
+        # ── Section 3: TECHNICAL BASIS (Hindi) ──
+        pdf.set_font('Hindi', 'B', 10)
+        pdf.cell(0, 6, '\u0916\u0902\u0921 3: \u0924\u0915\u0928\u0940\u0915\u0940 \u0906\u0927\u093e\u0930', 0, 1, 'L')
+        pdf._thin_line()
+        pdf.set_font('Hindi', '', 9)
+        pdf.multi_cell(0, 5,
+            f'\u092a\u094d\u0930\u093e\u0925\u092e\u093f\u0915 \u092a\u0939\u091a\u093e\u0928 \u0906\u0927\u093e\u0930: {primary_hi}\u0964\n\n'
+            f'(a) NDVI \u0935\u0928\u0938\u094d\u092a\u0924\u093f \u0938\u0942\u091a\u0915\u093e\u0902\u0915 (Sentinel-2):\n'
+            f'    \u0938\u094d\u0915\u094b\u0930: {ndvi_display}  |  \u0938\u0940\u092e\u093e: 0.20  |  \u092e\u0942\u0932\u094d\u092f\u093e\u0902\u0915\u0928: {ndvi_str}\n\n'
+            f'(b) VV \u0930\u0921\u093e\u0930 \u092c\u0948\u0915\u0938\u094d\u0915\u0948\u091f\u0930 (Sentinel-1 SAR):\n'
+            f'    \u0938\u094d\u0915\u094b\u0930: {radar_display}  |  \u0938\u0940\u092e\u093e: -11.0 dB  |  \u092e\u0942\u0932\u094d\u092f\u093e\u0902\u0915\u0928: {radar_str}\n\n'
+            f'AI \u0935\u093f\u0936\u094d\u0935\u093e\u0938 \u0938\u094d\u0915\u094b\u0930: {conf_display}'
+        )
+        pdf.ln(2)
+
+        # ── Section 4: AMOUNT PAYABLE (Hindi) ──
+        pdf.set_font('Hindi', 'B', 10)
+        pdf.cell(0, 6, '\u0916\u0902\u0921 4: \u0926\u0947\u092f \u0930\u093e\u0936\u093f - \u0935\u093f\u0924\u094d\u0924\u0940\u092f \u0926\u093e\u092f\u093f\u0924\u094d\u0935', 0, 1, 'L')
+        pdf._thin_line()
+        pdf.set_font('Hindi', '', 9)
+        pdf.multi_cell(0, 5,
+            f'\u091b.\u0917. \u092d\u0942-\u0930\u093e\u091c\u0938\u094d\u0935 \u0938\u0902\u0939\u093f\u0924\u093e, 1959 \u090f\u0935\u0902 \u091b.\u0917. \u0928\u0917\u0930 \u0928\u093f\u0917\u092e \u0905\u0927\u093f\u0928\u093f\u092f\u092e, 1956 \u0915\u0947 \u0905\u0927\u0940\u0928:\n\n'
+            f'1. \u0935\u0948\u0927\u093e\u0928\u093f\u0915 \u091c\u0941\u0930\u094d\u092e\u093e\u0928\u093e: Rs. {fine_statutory:,}/-\n'
+            f'2. \u092d\u0942\u092e\u093f \u0935\u0938\u0942\u0932\u0940 ({area_excess_sqm:.1f} m2 @ Rs.{LAND_RATE_PER_SQFT}/sqft): Rs. {civil_liability:,}/-\n'
+            + (f'3. \u0905\u0935\u0927\u093f \u0905\u0927\u093f\u092d\u093e\u0930 ({months_violating} \u092e\u093e\u0939 @ Rs.{monthly_penalty_rate:,}/\u092e\u093e\u0939): Rs. {duration_penalty:,}/-\n' if duration_penalty > 0 else '')
+            + f'\n\u0915\u0941\u0932 \u0926\u0947\u092f \u0930\u093e\u0936\u093f: Rs. {total_liability:,}/- (\u0930\u0941\u092a\u092f\u0947 {_number_to_words(total_liability)} \u092e\u093e\u0924\u094d\u0930)\n'
+            f'\u092a\u094d\u0930\u093e\u092a\u094d\u0924\u093f \u0915\u0947 15 \u0926\u093f\u0928\u094b\u0902 \u0915\u0947 \u092d\u0940\u0924\u0930 \u091c\u092e\u093e \u0915\u0930\u0947\u0902\u0964'
+        )
+        pdf.ln(2)
+
+        # Directives Hindi
+        pdf.set_font('Hindi', 'B', 9)
+        pdf.cell(0, 5, '\u0928\u093f\u0930\u094d\u0926\u0947\u0936:', 0, 1, 'L')
+        pdf.set_font('Hindi', '', 9)
+        pdf.multi_cell(0, 5,
+            '1. \u0938\u092d\u0940 \u0905\u0928\u0927\u093f\u0915\u0943\u0924 \u0928\u093f\u0930\u094d\u092e\u093e\u0923 \u090f\u0935\u0902 \u092d\u0942\u092e\u093f \u0909\u092a\u092f\u094b\u0917 \u0917\u0924\u093f\u0935\u093f\u0927\u093f\u092f\u093e\u0902 \u0924\u0941\u0930\u0902\u0924 \u092c\u0902\u0926 \u0915\u0930\u0947\u0902\u0964\n'
+            f'2. Rs. {total_liability:,}/- 15 \u0926\u093f\u0928\u094b\u0902 \u092e\u0947\u0902 \u091c\u092e\u093e \u0915\u0930\u0947\u0902\u0964\n'
+            '3. \u092d\u0942\u092e\u093f \u0915\u094b \u0928\u093f\u0930\u094d\u0927\u093e\u0930\u093f\u0924 \u0914\u0926\u094d\u092f\u094b\u0917\u093f\u0915 \u0909\u092a\u092f\u094b\u0917 \u092e\u0947\u0902 \u092a\u0941\u0928\u0903\u0938\u094d\u0925\u093e\u092a\u093f\u0924 \u0915\u0930\u0947\u0902\u0964\n'
+            '4. \u0928\u093f\u0930\u094d\u0927\u093e\u0930\u093f\u0924 \u0938\u0941\u0928\u0935\u093e\u0908 \u0924\u093f\u0925\u093f \u092a\u0930 \u0930\u093e\u091c\u0938\u094d\u0935 \u0928\u094d\u092f\u093e\u092f\u093e\u0932\u092f / \u0924\u0939\u0938\u0940\u0932\u0926\u093e\u0930 \u0915\u0947 \u0938\u092e\u0915\u094d\u0937 \u0909\u092a\u0938\u094d\u0925\u093f\u0924 \u0939\u094b\u0902\u0964\n'
+            '5. \u0938\u092d\u0940 \u0906\u0935\u0902\u091f\u0928 \u0926\u0938\u094d\u0924\u093e\u0935\u0947\u091c\u093c, \u092d\u0935\u0928 \u0905\u0928\u0941\u092e\u0924\u093f \u090f\u0935\u0902 \u092d\u0942\u092e\u093f \u0905\u092d\u093f\u0932\u0947\u0916 \u092a\u094d\u0930\u0938\u094d\u0924\u0941\u0924 \u0915\u0930\u0947\u0902\u0964'
+        )
         pdf.ln(1)
 
-        pdf.set_font('Hindi', '', 9)
-        pdf.set_x(pdf.l_margin)
-        pdf.multi_cell(0, 5,
-            f'1. यह सूचना क्यों: उद्योगगढ़ AI उपग्रह निगरानी प्रणाली ने आपके प्लॉट ({plot_id}) पर '
-            f'अनधिकृत गतिविधि का पता लगाया है। उपग्रह चित्रों से प्रमाणित होता है कि आपकी भूमि पर '
-            f'आवंटन शर्तों का उल्लंघन हो रहा है।\n\n'
-            f'2. उल्लंघन की अवधि: {violation_duration_hi}।\n\n'
-            f'3. तकनीकी आधार: {primary_basis_hi}। '
-            f'NDVI मान: {ndvi_display}, रडार VV मान: {radar_display}, '
-            f'AI विश्वास स्कोर: {conf_display}।\n\n'
-            f'4. देय राशि: कुल Rs. {total_liability:,}/- (जुर्माना Rs. {fine_statutory:,} + '
-            f'भूमि वसूली Rs. {civil_liability:,}'
-            + (f' + अवधि अधिभार Rs. {duration_penalty:,}' if duration_penalty > 0 else '')
-            + f')। 15 दिनों के भीतर जमा करें।'
+        # Warning Hindi
+        pdf.set_font('Hindi', 'B', 8)
+        pdf.multi_cell(0, 4.5,
+            '\u091a\u0947\u0924\u093e\u0935\u0928\u0940: 15 \u0926\u093f\u0928\u094b\u0902 \u092e\u0947\u0902 \u0905\u0928\u0941\u092a\u093e\u0932\u0928 \u0928 \u0915\u0930\u0928\u0947 \u092a\u0930: (\u0915) \u0906\u092a\u0915\u0940 \u0932\u093e\u0917\u0924 \u092a\u0930 \u0905\u0928\u0927\u093f\u0915\u0943\u0924 \u0928\u093f\u0930\u094d\u092e\u093e\u0923 \u0927\u094d\u0935\u0938\u094d\u0924\u0940\u0915\u0930\u0923, '
+            '(\u0916) \u092d\u0942-\u0930\u093e\u091c\u0938\u094d\u0935 \u092c\u0915\u093e\u092f\u093e \u0915\u0947 \u0930\u0942\u092a \u092e\u0947\u0902 \u0935\u0938\u0942\u0932\u0940, '
+            '(\u0917) \u092a\u094d\u0932\u0949\u091f \u0906\u0935\u0902\u091f\u0928 \u0930\u0926\u094d\u0926, (\u0918) \u0932\u093e\u0917\u0942 \u0915\u093e\u0928\u0942\u0928\u094b\u0902 \u0915\u0947 \u0924\u0939\u0924 \u0906\u092a\u0930\u093e\u0927\u093f\u0915 \u0905\u092d\u093f\u092f\u094b\u091c\u0928\u0964'
         )
         pdf.ln(3)
 
-    # ═══════════════════════════════════════════════════════
-    # DIRECTIVES
-    # ═══════════════════════════════════════════════════════
-    if pdf.get_y() > 230:
-        pdf.add_page()
-    pdf.set_font('Times', 'B', 10)
-    pdf.set_text_color(0, 0, 0)
-    pdf.cell(0, 6, 'DIRECTIVES:', 0, 1, 'L')
-    pdf.set_font('Times', '', 9)
-    pdf.set_x(pdf.l_margin)
-    pdf.multi_cell(0, 5,
-        'You are hereby directed to:\n'
-        '   1. Immediately cease all unauthorized construction and land-use activities.\n'
-        f'   2. Deposit the total assessed amount of Rs. {total_liability:,}/- within 15 days.\n'
-        '   3. Restore the land to its original designated industrial use or face summary eviction.\n'
-        '   4. Appear before the Revenue Court / Tahsildar on the scheduled hearing date.\n'
-        '   5. Produce all allotment documents, building permissions, and land records for verification.'
-    )
-    pdf.ln(3)
-
-    # ── Warning ──
-    if pdf.get_y() > 250:
-        pdf.add_page()
-    pdf.set_x(pdf.l_margin)
-    pdf.set_font('Times', 'B', 9)
-    pdf.set_text_color(150, 0, 0)
-    pdf.multi_cell(0, 4.5,
-        'WARNING: Failure to comply within the stipulated 15 days shall result in: '
-        '(a) Demolition of unauthorized structures at your cost, '
-        '(b) Recovery of all dues as arrears of land revenue, '
-        '(c) Cancellation of plot allotment, and '
-        '(d) Criminal prosecution under applicable laws of Chhattisgarh.'
-    )
-    if pdf._hindi:
-        pdf.set_x(pdf.l_margin)
-        pdf.set_font('Hindi', 'B', 9)
-        pdf.multi_cell(0, 4.5,
-            'चेतावनी: 15 दिनों में अनुपालन न करने पर: (क) आपकी लागत पर अनधिकृत निर्माण ध्वस्तीकरण, '
-            '(ख) भू-राजस्व बकाया के रूप में सभी देय राशि की वसूली, '
-            '(ग) प्लॉट आवंटन रद्द, एवं (घ) लागू कानूनों के तहत आपराधिक अभियोजन।'
-        )
-    pdf.ln(6)
-
-    # ── Signature Block ──
-    if pdf.get_y() > 250:
-        pdf.add_page()
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font('Times', '', 10)
-    pdf.cell(95, 5, '', 0, 0)
-    pdf.cell(95, 5, 'By Order,', 0, 1, 'L')
-    pdf.ln(8)
-
-    pdf.cell(95, 5, '', 0, 0)
-    pdf.set_font('Times', 'B', 10)
-    pdf.cell(95, 5, 'Authorized Signatory', 0, 1, 'L')
-
-    if pdf._hindi:
-        pdf.cell(95, 5, '', 0, 0)
+        # Signature Hindi
         pdf.set_font('Hindi', '', 9)
-        pdf.cell(95, 5, 'अधिकृत हस्ताक्षरकर्ता, सचिव', 0, 1, 'L')
-
-    pdf.cell(95, 5, '', 0, 0)
-    pdf.set_font('Times', '', 9)
-    pdf.cell(95, 5, 'Revenue & Land Estate Management Dept.', 0, 1, 'L')
-
-    pdf.cell(95, 5, '', 0, 0)
-    pdf.cell(95, 5, 'CSIDC, Naya Raipur, Chhattisgarh', 0, 1, 'L')
-
-    # ── CC Block ──
-    pdf.ln(4)
-    pdf.set_font('Times', 'I', 8)
-    pdf.set_text_color(100, 100, 100)
-    pdf.cell(0, 4, 'CC: District Collector (Durg), Sub-Divisional Officer, CSIDC Managing Director, Tahsildar (Khapri)', 0, 1, 'L')
+        pdf.cell(100, 5, '', 0, 0)
+        pdf.cell(90, 5, '\u0906\u0926\u0947\u0936 \u0926\u094d\u0935\u093e\u0930\u093e,', 0, 1, 'L')
+        pdf.ln(6)
+        pdf.cell(100, 5, '', 0, 0)
+        pdf.set_font('Hindi', 'B', 9)
+        pdf.cell(90, 5, '\u0905\u0927\u093f\u0915\u0943\u0924 \u0939\u0938\u094d\u0924\u093e\u0915\u094d\u0937\u0930\u0915\u0930\u094d\u0924\u093e', 0, 1, 'L')
+        pdf.cell(100, 5, '', 0, 0)
+        pdf.set_font('Hindi', '', 8)
+        pdf.cell(90, 4, '\u0930\u093e\u091c\u0938\u094d\u0935 \u090f\u0935\u0902 \u092d\u0942-\u0938\u0902\u092a\u0926\u093e \u092a\u094d\u0930\u092c\u0902\u0927\u0928 \u0935\u093f\u092d\u093e\u0917, CSIDC', 0, 1, 'L')
 
     filename = f"NOTICE_{plot_id}_{date_short}.pdf"
     filepath = os.path.join(PDF_DIR, filename)

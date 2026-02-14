@@ -4,9 +4,9 @@ import Map from './Map';
 import ComparisonView from './ComparisonView';
 import HomeDashboard from './HomeDashboard';
 import {
-  Menu, Satellite, AlertTriangle, Activity, Search, ArrowLeft,
+  Satellite, AlertTriangle, Activity, Search, ArrowLeft,
   AlertCircle, Send, LayoutDashboard, MapPin, TrendingUp,
-  Info, Shield, Eye, Zap, ChevronRight, ExternalLink, Layers, Building2,
+  Info, Shield, Eye, Zap, ExternalLink, Layers, Building2,
   DollarSign, FileWarning, Download, Globe, Phone, Mail, X, Factory, Landmark, Warehouse
 } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
@@ -351,7 +351,7 @@ const ExecutiveSummary = ({ allZonesData, zones, generatedReports, scanProgress 
             <div className="col-span-2">Plot ID</div>
             <div className="col-span-2">Region</div>
             <div className="col-span-2 text-center">Status</div>
-            <div className="col-span-2 text-right">Area (m&sup2;)</div>
+            <div className="col-span-2 text-right">Encroached Area</div>
             <div className="col-span-2 text-right">Penalty (INR)</div>
             <div className="col-span-2 text-center">Legal Notice</div>
           </div>
@@ -411,7 +411,7 @@ const ExecutiveSummary = ({ allZonesData, zones, generatedReports, scanProgress 
                       {isViolating ? (
                         <span className="text-xs font-bold text-red-600 dark:text-red-400">{excessArea.toFixed(1)}</span>
                       ) : (
-                        <span className="text-xs text-slate-400">-</span>
+                        <span className="text-xs font-semibold text-slate-300 dark:text-slate-500">——</span>
                       )}
                     </div>
 
@@ -422,7 +422,7 @@ const ExecutiveSummary = ({ allZonesData, zones, generatedReports, scanProgress 
                           {'\u20B9'} {penalty.toLocaleString('en-IN')}
                         </span>
                       ) : (
-                        <span className="text-xs text-slate-400">-</span>
+                        <span className="text-xs font-semibold text-slate-300 dark:text-slate-500">——</span>
                       )}
                     </div>
 
@@ -437,7 +437,7 @@ const ExecutiveSummary = ({ allZonesData, zones, generatedReports, scanProgress 
                           <AlertCircle size={9} /> PENDING
                         </span>
                       ) : (
-                        <span className="text-xs text-slate-400">-</span>
+                        <span className="text-xs font-semibold text-slate-300 dark:text-slate-500">——</span>
                       )}
                     </div>
                   </div>
@@ -478,7 +478,7 @@ const ExecutiveSummary = ({ allZonesData, zones, generatedReports, scanProgress 
 
 // ─────────────────────── MAIN DASHBOARD ───────────────────────
 export default function SmartDashboard() {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+
   const [currentTime, setCurrentTime] = useState('');
   const [notification, setNotification] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -859,13 +859,13 @@ export default function SmartDashboard() {
               className="h-16 w-auto object-contain brightness-0 invert"
             />
             {/* CG State Emblem */}
-            <div className="h-16 w-16 flex items-center justify-center bg-white/90 rounded-full p-1">
+            <a href="https://cgstate.gov.in" target="_blank" rel="noopener noreferrer" className="h-16 w-16 flex items-center justify-center bg-white/90 rounded-full p-1 cursor-pointer hover:ring-2 hover:ring-white/40 transition-all">
               <img
                 src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Coat_of_arms_of_Chhattisgarh.svg/200px-Coat_of_arms_of_Chhattisgarh.svg.png"
                 alt="Chhattisgarh State Emblem"
                 className="h-full w-full object-contain"
               />
-            </div>
+            </a>
             <div className="border-l border-white/20 pl-5">
               <h1 className="text-2xl font-bold text-white font-heading tracking-wide leading-tight">
                 Chhattisgarh State Industrial Development Corporation
@@ -887,13 +887,6 @@ export default function SmartDashboard() {
               </span>
               <span className="text-blue-400 font-mono">{currentTime}</span>
             </div>
-            {/* CSIDC Logo */}
-            <img
-              src="https://csidc.in/wp-content/uploads/2022/07/44.jpg"
-              alt="CSIDC"
-              className="h-16 w-auto object-contain rounded"
-              onError={(e) => { e.target.style.display = 'none'; }}
-            />
           </div>
         </div>
       </div>
@@ -908,51 +901,6 @@ export default function SmartDashboard() {
       )}
 
       <div className="flex flex-1 overflow-hidden">
-
-        {/* ─────── Sidebar Navigation ─────── */}
-        <aside className={`${sidebarOpen ? 'w-60' : 'w-16'} govt-sidebar transition-all duration-300 flex flex-col z-20 flex-shrink-0`}>
-          {/* Sidebar Toggle */}
-          <div className="h-12 flex items-center justify-between px-3 border-b border-white/10">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <Menu size={18} className="text-white/80" />
-            </button>
-            {sidebarOpen && (
-              <span className="text-[10px] text-blue-300 font-semibold uppercase tracking-wider">Navigation</span>
-            )}
-          </div>
-
-          <nav className="flex-1 py-3 px-2 space-y-1 overflow-y-auto custom-scrollbar">
-            {/* Nav Items */}
-            {navItems.map(item => (
-              <button
-                key={item.id}
-                onClick={() => setActiveView(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${activeView === item.id
-                  ? 'bg-white/15 text-white font-bold border-l-2 border-[#FF9933]'
-                  : 'text-white/60 hover:bg-white/5 hover:text-white/90'
-                  }`}
-              >
-                {item.icon} {sidebarOpen && <span className="text-[15px]">{item.label}</span>}
-                {activeView === item.id && sidebarOpen && (
-                  <ChevronRight size={14} className="ml-auto text-[#FF9933]" />
-                )}
-              </button>
-            ))}
-          </nav>
-
-          {/* Sidebar Footer */}
-          {sidebarOpen && (
-            <div className="p-3 border-t border-white/10 animate-fade-in">
-              <div className="flex items-center gap-2 px-2">
-                <div className={`w-2 h-2 rounded-full ${loading ? 'bg-amber-400 animate-pulse' : 'bg-green-400'}`} />
-                <span className="text-[10px] font-semibold text-white/40">{loading ? 'Processing...' : 'System Ready'}</span>
-              </div>
-            </div>
-          )}
-        </aside>
 
         {/* ─────── Content Area ─────── */}
         <main className="flex-1 flex flex-col relative overflow-hidden">
@@ -1005,27 +953,33 @@ export default function SmartDashboard() {
                     <div className="flex flex-col gap-2">
                       {ZONES.map(zone => {
                         const isActive = openZonePanel === zone.id;
+                        const isZoomed = activeZone.id === zone.id;
                         const icons = { khapri: <Factory size={22} />, siyarpali: <Warehouse size={22} /> };
                         return (
                           <button
                             key={zone.id}
                             onClick={() => {
-                              if (isActive) {
-                                setOpenZonePanel(null);
+                              const alreadyOnZone = activeZone.id === zone.id;
+                              if (alreadyOnZone) {
+                                // Second click — toggle dropdown
+                                setOpenZonePanel(isActive ? null : zone.id);
                               } else {
-                                setOpenZonePanel(zone.id);
+                                // First click — zoom into the zone, close any open panel
+                                setOpenZonePanel(null);
                                 handleZoneSwitch(zone);
                               }
                             }}
                             className={`w-[82px] flex flex-col items-center justify-center gap-1.5 py-3 px-2 rounded-xl shadow-lg border-2 transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] cursor-pointer ${isActive
                               ? 'bg-[#3b82f6] border-[#3b82f6] text-white scale-105 shadow-blue-300/40'
-                              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-[#003366] dark:text-blue-400 hover:border-[#3b82f6]/50 hover:shadow-xl hover:scale-[1.03]'
+                              : isZoomed
+                                ? 'bg-blue-50 dark:bg-slate-700 border-[#3b82f6]/60 text-[#003366] dark:text-blue-300 shadow-blue-200/30'
+                                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-600 text-[#003366] dark:text-blue-400 hover:border-[#3b82f6]/50 hover:shadow-xl hover:scale-[1.03]'
                               }`}
                           >
-                            <div className={`transition-transform duration-300 ${isActive ? 'scale-110' : ''}`}>
+                            <div className={`transition-transform duration-300 ${isActive || isZoomed ? 'scale-110' : ''}`}>
                               {icons[zone.id] || <Building2 size={22} />}
                             </div>
-                            <span className={`text-[10px] font-bold text-center leading-tight transition-colors duration-300 ${isActive ? 'text-white' : 'text-slate-700 dark:text-slate-300'
+                            <span className={`text-[10px] font-bold text-center leading-tight transition-colors duration-300 ${isActive ? 'text-white' : isZoomed ? 'text-[#3b82f6] dark:text-blue-300' : 'text-slate-700 dark:text-slate-300'
                               }`}>
                               {zone.name}
                             </span>

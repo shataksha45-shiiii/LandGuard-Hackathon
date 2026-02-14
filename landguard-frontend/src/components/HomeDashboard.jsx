@@ -143,16 +143,16 @@ export default function HomeDashboard({ onNavigate }) {
 
       {/* ════════════════════  HERO  ════════════════════ */}
       <section className="relative overflow-hidden bg-[#1b3a4b] text-white min-h-[480px]">
-        {/* Satellite background image */}
+        {/* CG district-map background */}
         <div className="absolute inset-0">
           <img
-            src="https://mt1.google.com/vt/lyrs=s&x=2932&y=1577&z=12"
-            alt=""
-            className="w-full h-full object-cover"
+            src="/cg-map.png"
+            alt="Chhattisgarh Districts"
+            className="w-full h-full object-cover opacity-[0.35]"
             onError={(e) => { e.target.style.display = 'none'; }}
           />
           {/* dark teal overlay so text stays readable */}
-          <div className="absolute inset-0 bg-gradient-to-r from-[#152d3a] via-[#1b3a4b]/92 to-[#1b3a4b]/65" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#152d3a]/60 via-[#1b3a4b]/50 to-[#1b3a4b]/35" />
         </div>
 
         <div className="relative max-w-7xl mx-auto px-10 py-20 flex items-center gap-12">
@@ -339,7 +339,7 @@ export default function HomeDashboard({ onNavigate }) {
           <div className="grid md:grid-cols-2 gap-5">
             {features.map((f, i) => (
               <Reveal key={i} delay={i * 100}>
-                <div className="group bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/60 dark:border-slate-700/50 p-6 hover:border-transparent transition-all duration-500 hover:shadow-2xl hover:-translate-y-2">
+                <div className="group h-full bg-white dark:bg-slate-800 rounded-2xl border border-slate-200/60 dark:border-slate-700/50 p-6 hover:border-transparent transition-all duration-500 hover:shadow-2xl hover:-translate-y-2">
                   <div className="flex items-start gap-4">
                     <div className={`p-3.5 rounded-2xl bg-gradient-to-br ${f.gradient} text-white flex-shrink-0 group-hover:scale-110 group-hover:shadow-lg transition-all duration-500`}>
                       {f.icon}
