@@ -1,0 +1,6 @@
+flask
+flask-cors
+fpdf
+earthengine-api
+gunicorn
+python-dotenv

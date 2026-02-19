@@ -5,22 +5,43 @@ import ee
 import datetime
 import os
 import math
+import json
+import base64
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- CONFIGURATION ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-SERVICE_ACCOUNT_FILE = os.path.join(BASE_DIR, 'service-account.json')
-SERVICE_ACCOUNT_EMAIL = 'landguard-bot@landguard-hackathon.iam.gserviceaccount.com' 
 
 # --- AUTHENTICATION ---
+GEE_SERVICE_ACCOUNT = os.getenv('GEE_SERVICE_ACCOUNT')
+GEE_PRIVATE_KEY = os.getenv('GEE_PRIVATE_KEY') # Expected as base64 string
+GEE_PROJECT = os.getenv('GEE_PROJECT', 'landguard-hackathon')
+
 try:
-    credentials = ee.ServiceAccountCredentials(SERVICE_ACCOUNT_EMAIL, SERVICE_ACCOUNT_FILE)
-    ee.Initialize(credentials, project='landguard-hackathon')
-    print("✅ GEE Connected Successfully.")
+    if GEE_SERVICE_ACCOUNT and GEE_PRIVATE_KEY:
+        # Load from environment variables (recommended for cloud hosting)
+        key_json = json.loads(base64.b64decode(GEE_PRIVATE_KEY).decode('utf-8'))
+        credentials = ee.ServiceAccountCredentials(GEE_SERVICE_ACCOUNT, key_data=key_json)
+        ee.Initialize(credentials, project=GEE_PROJECT)
+        print("✅ GEE Connected via Environment Variables.")
+    else:
+        # Fallback to local file
+        SERVICE_ACCOUNT_FILE = os.path.join(BASE_DIR, 'service-account.json')
+        SERVICE_ACCOUNT_EMAIL = 'landguard-bot@landguard-hackathon.iam.gserviceaccount.com'
+        credentials = ee.ServiceAccountCredentials(SERVICE_ACCOUNT_EMAIL, SERVICE_ACCOUNT_FILE)
+        ee.Initialize(credentials, project=GEE_PROJECT)
+        print("✅ GEE Connected via local service-account.json.")
 except Exception as e:
     print(f"❌ GEE Auth Failed: {e}")
 
 app = Flask(__name__)
-CORS(app)
+
+# Configure CORS for production
+# In production, Replace '*' with the specific frontend URL for better security
+allowed_origins = os.getenv('ALLOWED_ORIGINS', '*').split(',')
+CORS(app, resources={r"/*": {"origins": allowed_origins}})
 
 # Create pdfs directory if it doesn't exist
 PDF_DIR = os.path.join(BASE_DIR, 'pdfs')

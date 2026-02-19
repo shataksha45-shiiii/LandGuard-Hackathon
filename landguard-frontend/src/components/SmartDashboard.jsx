@@ -12,7 +12,7 @@ import {
 import ThemeToggle from './ThemeToggle';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-const API_BASE = `http://${window.location.hostname}:5001`;
+const API_BASE = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:5001`;
 
 // Utility function to calculate polygon area from lat/lon coordinates
 const calculatePolygonArea = (coordinates) => {
@@ -251,11 +251,10 @@ const ExecutiveSummary = ({ allZonesData, zones, generatedReports, scanProgress 
             </div>
             <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all duration-500 ease-out ${
-                  scanProgress.scanning
+                className={`h-full rounded-full transition-all duration-500 ease-out ${scanProgress.scanning
                     ? 'bg-gradient-to-r from-[#FF9933] via-white to-[#138808] animate-pulse'
                     : 'bg-gradient-to-r from-[#138808] to-[#0f6b06]'
-                }`}
+                  }`}
                 style={{ width: `${scanProgress.total > 0 ? (scanProgress.scanned / scanProgress.total) * 100 : 0}%` }}
               />
             </div>
@@ -290,9 +289,8 @@ const ExecutiveSummary = ({ allZonesData, zones, generatedReports, scanProgress 
             <div
               key={z.id}
               onClick={() => setSelectedZoneId(z.id)}
-              className={`bg-white dark:bg-slate-800 border rounded-xl p-4 cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 ${
-                selectedZoneId === z.id ? 'border-[#FF9933] ring-2 ring-[#FF9933]/20 shadow-md' : 'border-slate-200/60 dark:border-slate-700/50'
-              }`}
+              className={`bg-white dark:bg-slate-800 border rounded-xl p-4 cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5 ${selectedZoneId === z.id ? 'border-[#FF9933] ring-2 ring-[#FF9933]/20 shadow-md' : 'border-slate-200/60 dark:border-slate-700/50'
+                }`}
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -373,11 +371,10 @@ const ExecutiveSummary = ({ allZonesData, zones, generatedReports, scanProgress 
                 return (
                   <div
                     key={`${plot.zone_id}-${plot.plot_id}-${idx}`}
-                    className={`grid grid-cols-12 gap-2 px-5 py-3 items-center text-sm transition-colors duration-200 ${
-                      isViolating
+                    className={`grid grid-cols-12 gap-2 px-5 py-3 items-center text-sm transition-colors duration-200 ${isViolating
                         ? 'bg-red-50/50 dark:bg-red-950/10 hover:bg-red-50 dark:hover:bg-red-950/20'
                         : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
-                    }`}
+                      }`}
                   >
                     {/* Plot ID */}
                     <div className="col-span-2">
